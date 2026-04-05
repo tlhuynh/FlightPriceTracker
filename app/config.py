@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Parsed variables from environment (with defaults where appropriate).
 SERPAPI_KEY = os.getenv("SERPAPI_KEY", "")
 DATABASE_URL = os.getenv("DATABASE_URL", "")
 SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY", "")
