@@ -2,6 +2,7 @@
 # NOTE: Models and database functions are kept in this single file for now.
 # Consider splitting into models/ and repositories/ folders as the project grows.
 # TODO: Refactor this file when more models and functions are added to keep things organized and maintainable.
+import logging
 from datetime import date, datetime
 
 from sqlalchemy import create_engine, Column, Integer, String, DateTime, Float, text
@@ -9,6 +10,7 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 
 from app.config import DATABASE_URL
 
+logger = logging.getLogger(__name__)
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(bind=engine)
 Base = declarative_base()
@@ -36,6 +38,7 @@ class FlightRecord(Base):
 
 # Function to save flight records to the database
 def save_flight_records(flights: list[dict]):
+    logger.info("Saving %d flight records to database.", len(flights))
     session = SessionLocal()
     try:
         for flight in flights:
@@ -53,7 +56,9 @@ def save_flight_records(flights: list[dict]):
             )
             session.add(record)
         session.commit()
+        logger.info("Successfully saved %d flight records.", len(flights))
     except Exception:
+        logger.error("Failed to save flight records. Rolling back.")
         session.rollback()
         raise
     finally:
@@ -119,6 +124,7 @@ def get_monthly_api_call_count() -> int:
 # Function to initialize the database (create tables)
 def init_db():
     Base.metadata.create_all(bind=engine)
+    logger.info("Database initialized — tables created.")
 
 
 # Function to check database connection
@@ -126,6 +132,8 @@ def check_db_connection() -> bool:
     try:
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
+        logger.info("Database connection check passed.")
         return True
     except Exception:
+        logger.error("Database connection check failed.")
         return False
