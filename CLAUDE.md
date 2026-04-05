@@ -176,24 +176,38 @@ DATABASE_URL must always be set — points to local Docker SQL Server in dev, Az
 - [x] Update pyproject.toml packages reference from flight_tracker_python to app
 - [x] Added purpose comments to all .py files
 
+- [x] Set up .gitignore
+- [x] Set up .env and .env.example
+- [x] Install dependencies via Poetry (+ ruff as dev dependency)
+- [x] Write config.py (routes, airlines, settings, outbound date calculation)
+- [x] Write serpapi.py (fetch prices from SerpApi, filter by airline)
+- [x] Write db.py (SQLAlchemy models for FlightRecord + ApiCallLog, CRUD functions)
+- [x] Write checker.py (compare prices, DB connection check, rate limiting — in progress)
+
 ### Up next (start here in VS Code)
-- [ ] Set up .gitignore
-- [ ] Set up .env and .env.example
-- [ ] Install dependencies via Poetry:
-        poetry add fastapi uvicorn httpx python-dotenv sqlalchemy apscheduler
-        poetry add --group dev pytest pytest-asyncio
-- [ ] Write config.py (routes, airlines, settings)
-- [ ] Write serpapi.py (fetch prices from SerpApi, filter by airline)
+- [ ] Finish checker.py (add features #1, 3, 4, 5, 9, 10 — see notes below)
 - [ ] Test SerpApi call returns real price for IAH to NRT
-- [ ] Write db.py (SQLAlchemy models, save prices)
-- [ ] Write checker.py (compare new price vs last stored price)
-- [ ] Write notifier.py (send email on price change)
-- [ ] Write scheduler.py (APScheduler, run once per day)
+- [ ] Write notifier.py (send email on price change via SendGrid)
+- [ ] Write scheduler.py (APScheduler, run every 48 hours)
 - [ ] Write main.py (wire everything together)
 - [ ] Write api/routes.py (FastAPI endpoints)
 - [ ] Write api/schemas.py (Pydantic models)
 - [ ] Add Docker (Dockerfile + docker-compose.yml)
 - [ ] Deploy to Azure Container Apps
+
+### Remaining checker.py features to add
+- [ ] #1 — Logging (log what's happening during each check)
+- [ ] #3 — New flight alert (flag flights with no previous record)
+- [ ] #4 — Flight disappeared alert (previously seen flight not in results)
+- [ ] #5 — Error handling per route (catch, log, continue to next route)
+- [ ] #9 — Duplicate flight filtering (skip same flight number appearing twice)
+- [ ] #10 — Validate price data (positive number before saving)
+
+### Future checker.py enhancements (TODO)
+- [ ] #2 — Price trend detection (e.g., "dropped 3 times in a row")
+- [ ] #6 — Cheapest flight summary per route
+- [ ] #7 — Price per stop comparison
+- [ ] #8 — Weekend vs weekday price tracking
 
 ---
 
@@ -207,6 +221,11 @@ DATABASE_URL must always be set — points to local Docker SQL Server in dev, Az
 - Poetry over plain pip/venv — cleaner dependency management
 - Python 3.12.11 via pyenv — stable, full package support
 - Poetry installed via Homebrew on Mac
+- SendGrid for email alerts (existing account), not smtplib
+- Check interval set to 48 hours to stay within SerpApi free tier (100 calls/month)
+- NOTIFY_EMAILS supports multiple recipients (comma-separated)
+- Ruff for linting and formatting (dev dependency)
+- db.py keeps models + functions in one file for now; split into models/ and repositories/ when it grows
 
 ---
 

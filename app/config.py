@@ -36,10 +36,12 @@ WATCHED_AIRLINES = {
     "American Airlines",
 }
 
+
 # Calculate outbound dates: 30 days (1 month) and 180 days (6 months) from today, in ISO format (YYYY-MM-DD).
-# TODO: In the future, consider making these dynamic (e.g., from user input or config) instead of hardcoding.
-today = date.today()
-OUTBOUND_DATES = [
-    (today + timedelta(days=30)).isoformat(),
-    (today + timedelta(days=180)).isoformat(),
-]
+# TODO: In the future, consider making these dynamic to change based on user preferences or to add more date options.
+def get_outbound_dates() -> list[str]:
+    today = date.today()
+    return [
+        (today + timedelta(days=30)).isoformat(),
+        (today + timedelta(days=180)).isoformat(),
+    ]

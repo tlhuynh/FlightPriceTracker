@@ -19,6 +19,9 @@ venv/
 # OS
 .DS_Store
 
+# Personal notes
+session-notes/
+
 # Distribution / build
 dist/
 build/
