@@ -5,7 +5,7 @@
 import logging
 from datetime import date, datetime
 
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, Float, text
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, Float, text, func
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 from app.config import DATABASE_URL
@@ -67,16 +67,55 @@ def save_flight_records(flights: list[dict]):
 
 # Function to get the latest record for a specific route and airline
 def get_latest_record(
-    departure: str, arrival: str, airline: str
+    departure: str, arrival: str, airline: str, flight_number: str, outbound_date: str
 ) -> FlightRecord | None:
     session = SessionLocal()
     try:
         return (
             session.query(FlightRecord)
-            .filter_by(departure=departure, arrival=arrival, airline=airline)
+            .filter_by(
+                departure=departure,
+                arrival=arrival,
+                airline=airline,
+                flight_number=flight_number,
+                outbound_date=outbound_date,
+            )
             .order_by(FlightRecord.checked_at.desc())
             .first()
         )
+    finally:
+        session.close()
+
+
+# Function to get the list of flight numbers for a specific route and date from the most recent check
+def get_previous_flight_numbers(
+    departure: str, arrival: str, outbound_date: str
+) -> list[dict]:
+    session = SessionLocal()
+    try:
+        latest_check = (
+            session.query(func.max(FlightRecord.checked_at))
+            .filter_by(departure=departure, arrival=arrival, outbound_date=outbound_date)
+            .scalar()
+        )
+        if not latest_check:
+            return []
+
+        records = (
+            session.query(FlightRecord)
+            .filter_by(
+                departure=departure,
+                arrival=arrival,
+                outbound_date=outbound_date,
+                checked_at=latest_check,
+            )
+            .all()
+        )
+        return [
+            {"flight_number": r.flight_number, "airline": r.airline, "price": r.price}
+            for r in records
+            if r.flight_number is not None
+        ]
     finally:
         session.close()
 
