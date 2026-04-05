@@ -1,0 +1,1 @@
+# Configuration — routes to watch, airlines, check interval, and env var loading.

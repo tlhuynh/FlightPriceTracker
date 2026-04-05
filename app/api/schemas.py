@@ -1,0 +1,1 @@
+# API schemas — Pydantic models defining the shape of API request/response JSON.

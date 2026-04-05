@@ -1,0 +1,1 @@
+# SerpApi client — calls Google Flights API and returns prices filtered to watched airlines.

@@ -1,0 +1,30 @@
+[project]
+name = "flight-tracker-python"
+version = "0.1.0"
+description = "Backend server to track prices of set flights"
+authors = [
+    {name = "tlhuynh",email = "tlhuynh.work@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi (>=0.135.3,<0.136.0)",
+    "unicorn (>=2.1.4,<3.0.0)",
+    "httpx (>=0.28.1,<0.29.0)",
+    "python-dotenv (>=1.2.2,<2.0.0)",
+    "sqlalchemy (>=2.0.49,<3.0.0)",
+    "apscheduler (>=3.11.2,<4.0.0)"
+]
+
+[tool.poetry]
+packages = [{include = "app"}]
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[dependency-groups]
+dev = [
+    "pytest (>=9.0.2,<10.0.0)",
+    "pytest-asyncio (>=1.3.0,<2.0.0)"
+]

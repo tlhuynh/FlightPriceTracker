@@ -1,0 +1,1 @@
+# Entry point — starts the APScheduler and FastAPI web server together.

@@ -1,0 +1,1 @@
+# Notifier — sends email alerts when a price change is detected.
