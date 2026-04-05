@@ -13,7 +13,7 @@ dashboard with price history and reports.
 Background service handling all data work:
 - Fetches flight prices via SerpApi (Google Flights)
 - Runs on a schedule once per day (APScheduler)
-- Detects price changes and sends email alerts (smtplib or SendGrid)
+- Detects price changes and sends email alerts (SendGrid)
 - Saves all price history to the database
 - Exposes a REST API via FastAPI so the dashboard can read data
 
@@ -33,7 +33,7 @@ Frontend + thin backend for visualization:
 | Scheduler        | APScheduler             | runs once per day              |
 | Database         | SQL Server (existing)   | reuse live Azure SQL Server    |
 | Python DB driver | pyodbc + SQLAlchemy     | mssql+pyodbc connection string |
-| Email alerts     | smtplib or SendGrid     | SendGrid 100 emails/day free   |
+| Email alerts     | SendGrid                | 100 emails/day free            |
 | Python API       | FastAPI + uvicorn       | port 8000                      |
 | .NET backend     | ASP.NET Minimal API     | port 5000, optional BFF layer  |
 | Frontend         | Angular                 | port 4200 in dev               |
@@ -143,9 +143,9 @@ flight-tracker-python/
 # .env.example — commit this
 SERPAPI_KEY=your_serpapi_key_here
 DATABASE_URL=mssql+pyodbc://user:pass@server.database.windows.net/FlightTracker?driver=ODBC+Driver+18+for+SQL+Server
-EMAIL_FROM=you@gmail.com
-EMAIL_PASSWORD=your_app_password
-NOTIFY_EMAIL=you@gmail.com
+SENDGRID_API_KEY=your_sendgrid_api_key_here
+EMAIL_FROM=you@example.com
+NOTIFY_EMAILS=you@example.com,another@example.com
 CHECK_INTERVAL_HOURS=24
 ALERT_THRESHOLD_USD=50
 ```
