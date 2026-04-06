@@ -5,7 +5,16 @@
 import logging
 from datetime import date, datetime
 
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, Float, text, func
+from sqlalchemy import (
+    create_engine,
+    Column,
+    Integer,
+    String,
+    DateTime,
+    Float,
+    text,
+    func,
+)
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 from app.config import DATABASE_URL
@@ -95,7 +104,9 @@ def get_previous_flight_numbers(
     try:
         latest_check = (
             session.query(func.max(FlightRecord.checked_at))
-            .filter_by(departure=departure, arrival=arrival, outbound_date=outbound_date)
+            .filter_by(
+                departure=departure, arrival=arrival, outbound_date=outbound_date
+            )
             .scalar()
         )
         if not latest_check:

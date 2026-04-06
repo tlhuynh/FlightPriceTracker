@@ -135,14 +135,16 @@ def check_prices():
                             outbound_date,
                             prev["price"],
                         )
-                        alerts.append({
-                            "type": "disappeared_flight",
-                            "airline": prev["airline"],
-                            "flight_number": prev["flight_number"],
-                            "route": f"{route['departure']} → {route['arrival']}",
-                            "last_price": prev["price"],
-                            "outbound_date": outbound_date,
-                        })
+                        alerts.append(
+                            {
+                                "type": "disappeared_flight",
+                                "airline": prev["airline"],
+                                "flight_number": prev["flight_number"],
+                                "route": f"{route['departure']} → {route['arrival']}",
+                                "last_price": prev["price"],
+                                "outbound_date": outbound_date,
+                            }
+                        )
 
                 logger.info(
                     "Fetched and saved %d flights for route %s → %s on %s.",

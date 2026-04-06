@@ -7,6 +7,7 @@ from app.config import SENDGRID_API_KEY, EMAIL_FROM, NOTIFY_EMAILS
 
 logger = logging.getLogger(__name__)
 
+
 # TODO update the layout of the email body to be more readable and include more details about the flight and price change.
 # Build an email notification with the given alerts.
 def build_email_body(alerts: list[dict]) -> str:
