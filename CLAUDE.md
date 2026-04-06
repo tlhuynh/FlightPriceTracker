@@ -182,26 +182,21 @@ DATABASE_URL must always be set — points to local Docker SQL Server in dev, Az
 - [x] Write config.py (routes, airlines, settings, outbound date calculation)
 - [x] Write serpapi.py (fetch prices from SerpApi, filter by airline)
 - [x] Write db.py (SQLAlchemy models for FlightRecord + ApiCallLog, CRUD functions)
-- [x] Write checker.py (compare prices, DB connection check, rate limiting — in progress)
+- [x] Write checker.py (all features: logging, new/disappeared/untracked flight alerts, error handling, dedup, price validation, rate limiting, DB check)
+- [x] Write notifier.py (SendGrid email alerts, grouped by alert type)
+- [x] Write scheduler.py (APScheduler, run every 48 hours)
+- [x] Write main.py (lifespan startup, logging config, uvicorn, router)
+- [x] Write api/schemas.py (Pydantic models with from_attributes)
+- [x] Write api/routes.py (FastAPI endpoints: /routes, /prices/latest, /prices/{dep}/{arr})
 
 ### Up next (start here in VS Code)
-- [ ] Finish checker.py (add features #1, 3, 4, 5, 9, 10 — see notes below)
+- [ ] Set up local SQL Server Docker container on Mac
+- [ ] Create FlightTracker database
+- [ ] Test app startup (poetry run python -m app.main)
 - [ ] Test SerpApi call returns real price for IAH to NRT
-- [ ] Write notifier.py (send email on price change via SendGrid)
-- [ ] Write scheduler.py (APScheduler, run every 48 hours)
-- [ ] Write main.py (wire everything together)
-- [ ] Write api/routes.py (FastAPI endpoints)
-- [ ] Write api/schemas.py (Pydantic models)
+- [ ] Add unit tests
 - [ ] Add Docker (Dockerfile + docker-compose.yml)
 - [ ] Deploy to Azure Container Apps
-
-### Remaining checker.py features to add
-- [ ] #1 — Logging (log what's happening during each check)
-- [ ] #3 — New flight alert (flag flights with no previous record)
-- [ ] #4 — Flight disappeared alert (previously seen flight not in results)
-- [ ] #5 — Error handling per route (catch, log, continue to next route)
-- [ ] #9 — Duplicate flight filtering (skip same flight number appearing twice)
-- [ ] #10 — Validate price data (positive number before saving)
 
 ### Future checker.py enhancements (TODO)
 - [ ] #2 — Price trend detection (e.g., "dropped 3 times in a row")

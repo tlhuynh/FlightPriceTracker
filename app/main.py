@@ -6,6 +6,8 @@ from fastapi import FastAPI
 
 from app.db import init_db
 from app.scheduler import start_scheduler
+from app.api.routes import router
+
 
 logging.basicConfig(
     level=logging.INFO,
@@ -28,6 +30,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Flight Tracker API", lifespan=lifespan)
+app.include_router(router)
 
 if __name__ == "__main__":
     uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
