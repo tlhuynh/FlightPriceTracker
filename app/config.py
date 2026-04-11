@@ -40,12 +40,21 @@ WATCHED_AIRLINES = {
     "American Airlines",
 }
 
+TRIP_LENGTH_DAYS = 14  # Default trip length in days for outbound date calculations.
+
 
 # Calculate outbound dates: 30 days (1 month) and 180 days (6 months) from today, in ISO format (YYYY-MM-DD).
 # TODO: In the future, consider making these dynamic to change based on user preferences or to add more date options.
-def get_outbound_dates() -> list[str]:
+def get_travel_dates() -> list[dict]:
     today = date.today()
+    outbound_dates = [
+        today + timedelta(days=30),
+        today + timedelta(days=180),
+    ]
     return [
-        (today + timedelta(days=30)).isoformat(),
-        (today + timedelta(days=180)).isoformat(),
+        {
+            "outbound_date": d.isoformat(),
+            "return_date": (d + timedelta(days=TRIP_LENGTH_DAYS)).isoformat(),
+        }
+        for d in outbound_dates
     ]

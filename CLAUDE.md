@@ -142,15 +142,20 @@ flight-tracker-python/
 ```bash
 # .env.example — commit this
 SERPAPI_KEY=your_serpapi_key_here
-DATABASE_URL=mssql+pyodbc://user:pass@server.database.windows.net/FlightTracker?driver=ODBC+Driver+18+for+SQL+Server
+DB_HOST=localhost
+DB_PORT=1434
+DB_NAME=FlightTracker
+DB_USER=sa
+DB_PASSWORD=your_password_here
 SENDGRID_API_KEY=your_sendgrid_api_key_here
 EMAIL_FROM=you@example.com
 NOTIFY_EMAILS=you@example.com,another@example.com
-CHECK_INTERVAL_HOURS=24
+CHECK_INTERVAL_HOURS=48
 ALERT_THRESHOLD_USD=50
 ```
 
-DATABASE_URL must always be set — points to local Docker SQL Server in dev, Azure SQL Server in production.
+DB_* vars are used with SQLAlchemy URL.create() — avoids ODBC parsing issues with a single DATABASE_URL string.
+Local dev: Azure SQL Edge Docker on port 1434. Production: Azure SQL Server.
 
 ---
 
@@ -189,14 +194,20 @@ DATABASE_URL must always be set — points to local Docker SQL Server in dev, Az
 - [x] Write api/schemas.py (Pydantic models with from_attributes)
 - [x] Write api/routes.py (FastAPI endpoints: /routes, /prices/latest, /prices/{dep}/{arr})
 
-### Up next (start here in VS Code)
-- [ ] Set up local SQL Server Docker container on Mac
-- [ ] Create FlightTracker database
-- [ ] Test app startup (poetry run python -m app.main)
-- [ ] Test SerpApi call returns real price for IAH to NRT
-- [ ] Add unit tests
+- [x] Set up local SQL Server Docker container on Mac (Azure SQL Edge on port 1434)
+- [x] Create FlightTracker database
+- [x] Test app startup (poetry run python -m app.main)
+- [x] Set up SendGrid with domain authentication (tlhuynh.dev)
+- [x] Test SendGrid email sending (noreply@tlhuynh.dev)
+- [x] Refactored DATABASE_URL to individual DB_* env vars with URL.create()
+
+### Up next
+- [ ] Set up SerpApi account and test real flight data fetch
+- [ ] Set up GitHub Actions for CI/CD
+- [ ] Set up Azure services (Container Registry, Container Apps, Key Vault)
 - [ ] Add Docker (Dockerfile + docker-compose.yml)
 - [ ] Deploy to Azure Container Apps
+- [ ] Add unit tests
 
 ### Future checker.py enhancements (TODO)
 - [ ] #2 — Price trend detection (e.g., "dropped 3 times in a row")
@@ -221,6 +232,10 @@ DATABASE_URL must always be set — points to local Docker SQL Server in dev, Az
 - NOTIFY_EMAILS supports multiple recipients (comma-separated)
 - Ruff for linting and formatting (dev dependency)
 - db.py keeps models + functions in one file for now; split into models/ and repositories/ when it grows
+- DB connection uses URL.create() instead of DATABASE_URL string — SQL Server ODBC has parsing quirks
+- Local dev uses Azure SQL Edge Docker (ARM/Apple Silicon compatible) on port 1434
+- Email from: noreply@tlhuynh.dev (domain authenticated in SendGrid via Cloudflare DNS)
+- SendGrid API key: use restricted (Mail Send permission only), not full access
 
 ---
 

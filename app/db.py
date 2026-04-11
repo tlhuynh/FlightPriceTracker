@@ -50,6 +50,7 @@ class FlightRecord(Base):
     departure = Column(String(10), nullable=False)
     arrival = Column(String(10), nullable=False)
     outbound_date = Column(String(10), nullable=False)
+    return_date = Column(String(10), nullable=True)
     departure_time = Column(String(10), nullable=True)
     arrival_time = Column(String(10), nullable=True)
     stops = Column(Integer, nullable=True)
@@ -70,6 +71,7 @@ def save_flight_records(flights: list[dict]):
                 departure=flight["departure"],
                 arrival=flight["arrival"],
                 outbound_date=flight["outbound_date"],
+                return_date=flight.get("return_date"),
                 departure_time=flight.get("departure_time"),
                 arrival_time=flight.get("arrival_time"),
                 stops=flight.get("stops"),

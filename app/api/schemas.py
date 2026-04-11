@@ -12,6 +12,7 @@ class FlightRecordResponse(BaseModel):
     departure: str
     arrival: str
     outbound_date: str
+    return_date: str | None
     departure_time: str | None
     arrival_time: str | None
     stops: int | None

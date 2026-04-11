@@ -6,12 +6,15 @@ from app.config import SERPAPI_KEY, WATCHED_AIRLINES
 logger = logging.getLogger(__name__)
 
 
-def fetch_flights(departure: str, arrival: str, outbound_date: str) -> list[dict]:
+def fetch_flights(
+    departure: str, arrival: str, outbound_date: str, return_date: str
+) -> list[dict]:
     params = {
         "engine": "google_flights",
         "departure_id": departure,
         "arrival_id": arrival,
         "outbound_date": outbound_date,
+        "return_date": return_date,
         "currency": "USD",
         "hl": "en",
         "api_key": SERPAPI_KEY,
@@ -19,10 +22,11 @@ def fetch_flights(departure: str, arrival: str, outbound_date: str) -> list[dict
     logger.debug("SerpApi request params: %s", params)
 
     logger.info(
-        "Fetching flights from SerpApi: %s → %s on %s",
+        "Fetching flights from SerpApi: %s → %s on %s, return on %s",
         departure,
         arrival,
         outbound_date,
+        return_date,
     )
     response = httpx.get(
         "https://serpapi.com/search", params=params
@@ -56,6 +60,7 @@ def fetch_flights(departure: str, arrival: str, outbound_date: str) -> list[dict
                     "departure": departure,
                     "arrival": arrival,
                     "outbound_date": outbound_date,
+                    "return_date": return_date,
                     "departure_time": flight["flights"][0]
                     .get("departure_airport", {})
                     .get("time"),
