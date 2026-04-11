@@ -8,7 +8,11 @@ load_dotenv()
 
 # Parsed variables from environment (with defaults where appropriate).
 SERPAPI_KEY = os.getenv("SERPAPI_KEY", "")
-DATABASE_URL = os.getenv("DATABASE_URL", "")
+DB_HOST = os.getenv("DB_HOST", "localhost")
+DB_PORT = int(os.getenv("DB_PORT", "1434"))
+DB_NAME = os.getenv("DB_NAME", "FlightTracker")
+DB_USER = os.getenv("DB_USER", "sa")
+DB_PASSWORD = os.getenv("DB_PASSWORD", "")
 SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY", "")
 EMAIL_FROM = os.getenv("EMAIL_FROM", "")
 NOTIFY_EMAILS = os.getenv(

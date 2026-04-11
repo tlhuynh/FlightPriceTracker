@@ -15,12 +15,25 @@ from sqlalchemy import (
     text,
     func,
 )
+from sqlalchemy.engine import URL
 from sqlalchemy.orm import declarative_base, sessionmaker
 
-from app.config import DATABASE_URL
+from app.config import DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD
 
 logger = logging.getLogger(__name__)
-engine = create_engine(DATABASE_URL)
+connection_url = URL.create(
+    "mssql+pyodbc",
+    username=DB_USER,
+    password=DB_PASSWORD,
+    host=DB_HOST,
+    port=DB_PORT,
+    database=DB_NAME,
+    query={
+        "driver": "ODBC Driver 18 for SQL Server",
+        "TrustServerCertificate": "yes",
+    },
+)
+engine = create_engine(connection_url)
 SessionLocal = sessionmaker(bind=engine)
 Base = declarative_base()
 
