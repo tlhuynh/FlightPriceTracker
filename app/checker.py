@@ -1,14 +1,13 @@
 # Price checker — fetches new prices, compares against last saved price, triggers alerts on changes.
 import logging
 from app.config import ROUTES, ALERT_THRESHOLD_USD, get_travel_dates
-from app.serpapi import fetch_flights
+from app.serpapi import fetch_flights, get_account_usage
 from app.db import (
     save_flight_records,
     get_latest_record,
     get_previous_flight_numbers,
     check_db_connection,
     log_api_call,
-    get_monthly_api_call_count,
 )
 
 logger = logging.getLogger(__name__)
@@ -27,25 +26,31 @@ def check_prices():
             }
         ]
 
-    api_call_count = get_monthly_api_call_count()
     calls_needed = sum(len(get_travel_dates(r["trip_lengths"])) for r in ROUTES)
-    if api_call_count + calls_needed > 250:
+    usage = get_account_usage()
+    if usage is not None and usage["plan_searches_left"] < calls_needed:
         logger.warning(
-            "Rate limit warning: %d/250 API calls used this month. Need %d more but would exceed limit.",
-            api_call_count,
+            "Rate limit warning: only %d SerpApi searches left this month, need %d. Skipping check.",
+            usage["plan_searches_left"],
             calls_needed,
         )
         return [
             {
-                "error": f"Rate limit warning: {api_call_count}/250 API calls used this month. Need {calls_needed} more but would exceed limit."
+                "error": f"Rate limit warning: only {usage['plan_searches_left']} SerpApi searches left this month, need {calls_needed}."
             }
         ]
 
-    logger.info(
-        "API call count this month: %d. Calls needed for this check: %d.",
-        api_call_count,
-        calls_needed,
-    )
+    if usage is not None:
+        logger.info(
+            "SerpApi searches left: %d. Calls needed for this check: %d.",
+            usage["plan_searches_left"],
+            calls_needed,
+        )
+    else:
+        logger.warning(
+            "SerpApi usage check failed — proceeding without rate limit validation. Calls needed for this check: %d.",
+            calls_needed,
+        )
     alerts = []
 
     for route in ROUTES:
@@ -117,13 +122,10 @@ def check_prices():
                         return_date,
                     )
 
-                # Get previous flights before saving new ones
+                # Get previous flights before comparing or saving new ones
                 previous_flights = get_previous_flight_numbers(
                     route["departure"], route["arrival"], outbound_date
                 )
-
-                # Save all valid flights to the database
-                save_flight_records(valid_flights)
 
                 # Check for disappeared flights
                 current_flight_numbers = {
@@ -154,15 +156,6 @@ def check_prices():
                             }
                         )
 
-                logger.info(
-                    "Fetched and saved %d flights for route %s → %s on %s – %s.",
-                    len(valid_flights),
-                    route["departure"],
-                    route["arrival"],
-                    outbound_date,
-                    return_date,
-                )
-
                 # Handle per flight checking and alerts
                 for flight in valid_flights:
                     # Handle flight without flight number
@@ -191,6 +184,7 @@ def check_prices():
                         continue
 
                     # Flight with flight number
+
 
                     # Look up the most recent record for this specific flight
                     # (same route, airline, flight number, and date) to compare prices.
@@ -252,6 +246,17 @@ def check_prices():
                                     "return_date": return_date,
                                 }
                             )
+
+                # Save all valid flights after comparisons are done
+                save_flight_records(valid_flights)
+                logger.info(
+                    "Fetched and saved %d flights for route %s → %s on %s – %s.",
+                    len(valid_flights),
+                    route["departure"],
+                    route["arrival"],
+                    outbound_date,
+                    return_date,
+                )
             except Exception as e:
                 logger.error(
                     "Error checking prices for route %s → %s on %s – %s: %s",

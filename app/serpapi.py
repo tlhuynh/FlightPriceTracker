@@ -6,6 +6,34 @@ from app.config import SERPAPI_KEY, WATCHED_AIRLINES
 logger = logging.getLogger(__name__)
 
 
+def get_account_usage() -> dict | None:
+    """Fetch real monthly usage from SerpApi Account API. Returns None if the call fails.
+    This call is free and does not count toward the monthly search quota.
+    Ref: https://serpapi.com/account-api
+    """
+    try:
+        response = httpx.get(
+            "https://serpapi.com/account", params={"api_key": SERPAPI_KEY}
+        )
+        response.raise_for_status()
+        data = response.json()
+        logger.info(
+            "SerpApi usage: %d searches used this month, %d searches left.",
+            data.get("this_month_usage", 0),
+            data.get("plan_searches_left", 0),
+        )
+        return {
+            "this_month_usage": data.get("this_month_usage", 0),
+            "plan_searches_left": data.get("plan_searches_left", 0),
+        }
+    except Exception as e:
+        logger.warning(
+            "Failed to fetch SerpApi account usage. Rate limit check will be skipped. Error: %s",
+            str(e),
+        )
+        return None
+
+
 def fetch_flights(
     departure: str, arrival: str, outbound_date: str, return_date: str
 ) -> list[dict]:

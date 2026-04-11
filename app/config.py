@@ -4,7 +4,9 @@ from datetime import date, timedelta
 
 from dotenv import load_dotenv
 
-load_dotenv(override=True)  # Load environment variables from .env file, allowing overrides from the actual environment (e.g., for production secrets).
+load_dotenv(
+    override=True
+)  # Load environment variables from .env file, allowing overrides from the actual environment (e.g., for production secrets).
 
 # Parsed variables from environment (with defaults where appropriate).
 SERPAPI_KEY = os.getenv("SERPAPI_KEY", "")
@@ -33,11 +35,11 @@ ROUTES = [
 
 WATCHED_AIRLINES = {
     "ANA",
-    "Japan Airlines",
-    "Eva Air",
+    "JAL",
+    "EVA Air",
     "Delta",
-    "United Airlines",
-    "American Airlines",
+    "United",
+    "American",
 }
 
 

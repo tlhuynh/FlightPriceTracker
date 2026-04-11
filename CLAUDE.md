@@ -48,7 +48,7 @@ Frontend + thin backend for visualization:
 
 ## Target routes and airlines
 - Routes: IAH → NRT (Tokyo Narita), IAH → HND (Tokyo Haneda)
-- Airlines: United Airlines, ANA, Japan Airlines, Delta, American Airlines
+- Airlines: United, ANA, JAL, Delta, American, EVA Air (exact strings returned by SerpApi)
 - Dates tracked: 1 month out and 6 months from current date
 - Alert threshold: notify on any price change (configurable)
 
@@ -207,7 +207,11 @@ Local dev: Azure SQL Edge Docker on port 1434. Production: Azure SQL Server.
 - [x] Added startup price check with 240-call guard
 - [x] Set up SerpApi account and tested real flight data fetch
 - [x] Fixed load_dotenv(override=True) bug
-- [x] Fixed departure_time/arrival_time column size (String(10) → String(20))
+- [x] Fixed departure_time/arrival_time/outbound_date/return_date column sizes (String(10) → String(20))
+- [x] Replaced DB-based API count with SerpApi Account API (get_account_usage())
+- [x] Fixed WATCHED_AIRLINES to match exact SerpApi strings (United, American, JAL, EVA Air)
+- [x] Fixed save order bug in checker.py — save_flight_records() must run after get_latest_record() loop
+- [x] App fully working end-to-end — alerts firing correctly
 
 ### Up next
 - [ ] Set up GitHub Actions for CI/CD
@@ -266,7 +270,7 @@ params = {
 response = httpx.get("https://serpapi.com/search", params=params)
 flights = response.json().get("best_flights", [])
 
-WATCH_AIRLINES = {"United Airlines", "ANA", "Japan Airlines", "Delta", "American Airlines"}
+WATCH_AIRLINES = {"United", "ANA", "JAL", "Delta", "American", "EVA Air"}
 filtered = [f for f in flights if f["flights"][0]["airline"] in WATCH_AIRLINES]
 ```
 
