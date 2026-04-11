@@ -29,7 +29,7 @@ Frontend + thin backend for visualization:
 
 | Layer            | Technology              | Notes                          |
 |------------------|-------------------------|--------------------------------|
-| Price data       | SerpApi                 | Google Flights, 100 free/mo    |
+| Price data       | SerpApi                 | Google Flights, 250 free/mo    |
 | Scheduler        | APScheduler             | runs once per day              |
 | Database         | SQL Server (existing)   | reuse live Azure SQL Server    |
 | Python DB driver | pyodbc + SQLAlchemy     | mssql+pyodbc connection string |
@@ -150,7 +150,7 @@ DB_PASSWORD=your_password_here
 SENDGRID_API_KEY=your_sendgrid_api_key_here
 EMAIL_FROM=you@example.com
 NOTIFY_EMAILS=you@example.com,another@example.com
-CHECK_INTERVAL_HOURS=48
+CHECK_INTERVAL_HOURS=36
 ALERT_THRESHOLD_USD=50
 ```
 
@@ -189,7 +189,7 @@ Local dev: Azure SQL Edge Docker on port 1434. Production: Azure SQL Server.
 - [x] Write db.py (SQLAlchemy models for FlightRecord + ApiCallLog, CRUD functions)
 - [x] Write checker.py (all features: logging, new/disappeared/untracked flight alerts, error handling, dedup, price validation, rate limiting, DB check)
 - [x] Write notifier.py (SendGrid email alerts, grouped by alert type)
-- [x] Write scheduler.py (APScheduler, run every 48 hours)
+- [x] Write scheduler.py (APScheduler, run every 36 hours)
 - [x] Write main.py (lifespan startup, logging config, uvicorn, router)
 - [x] Write api/schemas.py (Pydantic models with from_attributes)
 - [x] Write api/routes.py (FastAPI endpoints: /routes, /prices/latest, /prices/{dep}/{arr})
@@ -201,8 +201,15 @@ Local dev: Azure SQL Edge Docker on port 1434. Production: Azure SQL Server.
 - [x] Test SendGrid email sending (noreply@tlhuynh.dev)
 - [x] Refactored DATABASE_URL to individual DB_* env vars with URL.create()
 
+- [x] Added round-trip flight support (return_date throughout stack)
+- [x] Per-route trip lengths (NRT/HND: 14 days, SGN: 14 + 30 days)
+- [x] Changed check interval to 36 hours
+- [x] Added startup price check with 240-call guard
+- [x] Set up SerpApi account and tested real flight data fetch
+- [x] Fixed load_dotenv(override=True) bug
+- [x] Fixed departure_time/arrival_time column size (String(10) → String(20))
+
 ### Up next
-- [ ] Set up SerpApi account and test real flight data fetch
 - [ ] Set up GitHub Actions for CI/CD
 - [ ] Set up Azure services (Container Registry, Container Apps, Key Vault)
 - [ ] Add Docker (Dockerfile + docker-compose.yml)
@@ -228,7 +235,7 @@ Local dev: Azure SQL Edge Docker on port 1434. Production: Azure SQL Server.
 - Python 3.12.11 via pyenv — stable, full package support
 - Poetry installed via Homebrew on Mac
 - SendGrid for email alerts (existing account), not smtplib
-- Check interval set to 48 hours to stay within SerpApi free tier (100 calls/month)
+- Check interval set to 36 hours — 8 calls/check × ~20 checks/month = 160 calls, leaving 90 buffer from the 250 free tier limit
 - NOTIFY_EMAILS supports multiple recipients (comma-separated)
 - Ruff for linting and formatting (dev dependency)
 - db.py keeps models + functions in one file for now; split into models/ and repositories/ when it grows

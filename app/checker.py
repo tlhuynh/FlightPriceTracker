@@ -28,17 +28,16 @@ def check_prices():
         ]
 
     api_call_count = get_monthly_api_call_count()
-    travel_dates = get_travel_dates()
-    calls_needed = len(ROUTES) * len(travel_dates)
-    if api_call_count + calls_needed > 100:
+    calls_needed = sum(len(get_travel_dates(r["trip_lengths"])) for r in ROUTES)
+    if api_call_count + calls_needed > 250:
         logger.warning(
-            "Rate limit warning: %d/100 API calls used this month. Need %d more but would exceed limit.",
+            "Rate limit warning: %d/250 API calls used this month. Need %d more but would exceed limit.",
             api_call_count,
             calls_needed,
         )
         return [
             {
-                "error": f"Rate limit warning: {api_call_count}/100 API calls used this month. Need {calls_needed} more but would exceed limit."
+                "error": f"Rate limit warning: {api_call_count}/250 API calls used this month. Need {calls_needed} more but would exceed limit."
             }
         ]
 
@@ -50,6 +49,7 @@ def check_prices():
     alerts = []
 
     for route in ROUTES:
+        travel_dates = get_travel_dates(route["trip_lengths"])
         logger.info(
             "Checking flight information for route: %s → %s",
             route["departure"],

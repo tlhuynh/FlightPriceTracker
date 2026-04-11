@@ -4,7 +4,7 @@ from datetime import date, timedelta
 
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(override=True)  # Load environment variables from .env file, allowing overrides from the actual environment (e.g., for production secrets).
 
 # Parsed variables from environment (with defaults where appropriate).
 SERPAPI_KEY = os.getenv("SERPAPI_KEY", "")
@@ -20,15 +20,15 @@ NOTIFY_EMAILS = os.getenv(
 ).split(
     ","
 )  # Split by comma for multiple emails; in Python, this automatically creates a list. If NOTIFY_EMAILS is empty, it will be [''] which is fine for our use case.
-CHECK_INTERVAL_HOURS = int(os.getenv("CHECK_INTERVAL_HOURS", "24"))
+CHECK_INTERVAL_HOURS = int(os.getenv("CHECK_INTERVAL_HOURS", "36"))
 ALERT_THRESHOLD_USD = int(os.getenv("ALERT_THRESHOLD_USD", "50"))
 
 # Define routes to watch: list of dicts with departure and arrival airport codes.
 # TODO: In the future, consider making this dynamic (e.g., from a database or config file) instead of hardcoding.
 ROUTES = [
-    {"departure": "IAH", "arrival": "NRT"},
-    {"departure": "IAH", "arrival": "HND"},
-    {"departure": "IAH", "arrival": "SGN"},
+    {"departure": "IAH", "arrival": "NRT", "trip_lengths": [14]},
+    {"departure": "IAH", "arrival": "HND", "trip_lengths": [14]},
+    {"departure": "IAH", "arrival": "SGN", "trip_lengths": [14, 30]},
 ]
 
 WATCHED_AIRLINES = {
@@ -40,21 +40,22 @@ WATCHED_AIRLINES = {
     "American Airlines",
 }
 
-TRIP_LENGTH_DAYS = 14  # Default trip length in days for outbound date calculations.
-
 
 # Calculate outbound dates: 30 days (1 month) and 180 days (6 months) from today, in ISO format (YYYY-MM-DD).
+# Calculate return dates based on trip lengths (e.g., 14 days, 30 days) from outbound date.
 # TODO: In the future, consider making these dynamic to change based on user preferences or to add more date options.
-def get_travel_dates() -> list[dict]:
+def get_travel_dates(trip_lengths: list[int]) -> list[dict]:
     today = date.today()
     outbound_dates = [
         today + timedelta(days=30),
         today + timedelta(days=180),
     ]
+    #
     return [
         {
             "outbound_date": d.isoformat(),
-            "return_date": (d + timedelta(days=TRIP_LENGTH_DAYS)).isoformat(),
+            "return_date": (d + timedelta(days=length)).isoformat(),
         }
         for d in outbound_dates
+        for length in trip_lengths
     ]
