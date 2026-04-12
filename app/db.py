@@ -89,9 +89,9 @@ def save_flight_records(flights: list[dict]):
         session.close()
 
 
-# Function to get the latest record for a specific route and airline
+# Function to get the latest record for a specific route, airline, and trip (outbound + return date)
 def get_latest_record(
-    departure: str, arrival: str, airline: str, flight_number: str, outbound_date: str
+    departure: str, arrival: str, airline: str, flight_number: str, outbound_date: str, return_date: str
 ) -> FlightRecord | None:
     session = SessionLocal()
     try:
@@ -103,6 +103,7 @@ def get_latest_record(
                 airline=airline,
                 flight_number=flight_number,
                 outbound_date=outbound_date,
+                return_date=return_date,
             )
             .order_by(FlightRecord.checked_at.desc())
             .first()
@@ -111,16 +112,16 @@ def get_latest_record(
         session.close()
 
 
-# Function to get the list of flight numbers for a specific route and date from the most recent check
+# Function to get the list of flight numbers for a specific route and trip from the most recent check
 def get_previous_flight_numbers(
-    departure: str, arrival: str, outbound_date: str
+    departure: str, arrival: str, outbound_date: str, return_date: str
 ) -> list[dict]:
     session = SessionLocal()
     try:
         latest_check = (
             session.query(func.max(FlightRecord.checked_at))
             .filter_by(
-                departure=departure, arrival=arrival, outbound_date=outbound_date
+                departure=departure, arrival=arrival, outbound_date=outbound_date, return_date=return_date
             )
             .scalar()
         )
@@ -133,6 +134,7 @@ def get_previous_flight_numbers(
                 departure=departure,
                 arrival=arrival,
                 outbound_date=outbound_date,
+                return_date=return_date,
                 checked_at=latest_check,
             )
             .all()

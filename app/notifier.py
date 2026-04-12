@@ -8,8 +8,38 @@ from app.config import SENDGRID_API_KEY, EMAIL_FROM, NOTIFY_EMAILS
 logger = logging.getLogger(__name__)
 
 
-# TODO update the layout of the email body to be more readable and include more details about the flight and price change.
-# Build an email body summarising all findings from one run.
+def _fmt_price(value) -> str:
+    """Format a numeric price as a dollar string with comma separator (e.g. $1,495)."""
+    if value is None:
+        return "—"
+    return f"${int(value):,}"
+
+
+def _fmt_stops(value) -> str:
+    """Format stop count as a readable string."""
+    if value is None:
+        return "—"
+    return "Direct" if value == 0 else str(value)
+
+
+def _format_table(headers: list[str], rows: list[list[str]]) -> str:
+    """
+    Render a plain-text table from a list of headers and rows.
+    Column widths are computed dynamically from the widest value in each column.
+    """
+    widths = [len(h) for h in headers]
+    for row in rows:
+        for i, cell in enumerate(row):
+            widths[i] = max(widths[i], len(str(cell)))
+
+    def fmt_row(cells):
+        return " | ".join(str(c).ljust(widths[i]) for i, c in enumerate(cells))
+
+    separator = "-+-".join("-" * w for w in widths)
+    lines = [fmt_row(headers), separator, *[fmt_row(row) for row in rows]]
+    return "\n".join(lines)
+
+
 def build_email_body(findings: list[dict]) -> str:
     sections = {
         "new_flight": [],
@@ -29,40 +59,86 @@ def build_email_body(findings: list[dict]) -> str:
     lines = []
 
     if sections["new_flight"]:
-        lines.append("--- New Flights Found ---")
-        for a in sections["new_flight"]:
-            lines.append(
-                f"  {a['airline']} {a['flight_number']} | {a['route']} | {a['outbound_date']} | ${a['price']}"
-            )
+        lines.append("=== New Flights Found ===")
+        rows = [
+            [
+                a["airline"],
+                a.get("flight_number", "—"),
+                a["route"],
+                a["outbound_date"],
+                a.get("return_date", "—"),
+                _fmt_stops(a.get("stops")),
+                _fmt_price(a.get("price")),
+            ]
+            for a in sections["new_flight"]
+        ]
+        lines.append(_format_table(
+            ["Airline", "Flight", "Route", "Departs", "Returns", "Stops", "Price"],
+            rows,
+        ))
         lines.append("")
 
     if sections["price_change"]:
-        lines.append("--- Price Changes ---")
-        for a in sections["price_change"]:
-            direction = "\u2193" if a["change"] < 0 else "\u2191"
-            lines.append(
-                f"  {a['airline']} | {a['route']} | {a['outbound_date']} | ${a['old_price']} \u2192 ${a['new_price']} ({direction}${abs(a['change'])})"
-            )
+        lines.append("=== Price Changes ===")
+        rows = [
+            [
+                a["airline"],
+                a.get("flight_number", "—"),
+                a["route"],
+                a["outbound_date"],
+                a.get("return_date", "—"),
+                _fmt_stops(a.get("stops")),
+                f"{_fmt_price(a['old_price'])} → {_fmt_price(a['new_price'])}",
+                f"{'↑' if a['change'] > 0 else '↓'}${abs(int(a['change'])):,}",
+            ]
+            for a in sections["price_change"]
+        ]
+        lines.append(_format_table(
+            ["Airline", "Flight", "Route", "Departs", "Returns", "Stops", "Price", "Change"],
+            rows,
+        ))
         lines.append("")
 
     if sections["disappeared_flight"]:
-        lines.append("--- Disappeared Flights ---")
-        for a in sections["disappeared_flight"]:
-            lines.append(
-                f"  {a['airline']} {a['flight_number']} | {a['route']} | {a['outbound_date']} | was ${a['last_price']}"
-            )
+        lines.append("=== Disappeared Flights ===")
+        rows = [
+            [
+                a["airline"],
+                a.get("flight_number", "—"),
+                a["route"],
+                a["outbound_date"],
+                a.get("return_date", "—"),
+                _fmt_price(a.get("last_price")),
+            ]
+            for a in sections["disappeared_flight"]
+        ]
+        lines.append(_format_table(
+            ["Airline", "Flight", "Route", "Departs", "Returns", "Last Price"],
+            rows,
+        ))
         lines.append("")
 
     if sections["untracked_flight"]:
-        lines.append("--- Untracked Flights (no flight number) ---")
-        for a in sections["untracked_flight"]:
-            lines.append(
-                f"  {a['airline']} | {a['route']} | {a['outbound_date']} | ${a['price']} | dep {a.get('departure_time', 'N/A')} | arr {a.get('arrival_time', 'N/A')} | {a.get('stops', '?')} stops"
-            )
+        lines.append("=== Untracked Flights (no flight number) ===")
+        rows = [
+            [
+                a["airline"],
+                a["route"],
+                a["outbound_date"],
+                a.get("return_date", "—"),
+                _fmt_stops(a.get("stops")),
+                _fmt_price(a.get("price")),
+            ]
+            for a in sections["untracked_flight"]
+        ]
+        lines.append(_format_table(
+            ["Airline", "Route", "Departs", "Returns", "Stops", "Price"],
+            rows,
+        ))
         lines.append("")
 
     if sections["error"]:
-        lines.append("--- Errors ---")
+        lines.append("=== Errors ===")
         for a in sections["error"]:
             lines.append(f"  {a.get('error', str(a))}")
         lines.append("")
@@ -81,7 +157,7 @@ def send_alert(findings: list[dict]):
     message = Mail(
         from_email=EMAIL_FROM,
         to_emails=NOTIFY_EMAILS,
-        subject="Flights Alert",
+        subject="Flight Tracker Alert",
         plain_text_content=body,
     )
 

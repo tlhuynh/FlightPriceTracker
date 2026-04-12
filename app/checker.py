@@ -124,7 +124,7 @@ def check_prices():
 
                 # Get previous flights before comparing or saving new ones
                 previous_flights = get_previous_flight_numbers(
-                    route["departure"], route["arrival"], outbound_date
+                    route["departure"], route["arrival"], outbound_date, return_date
                 )
 
                 # Check for disappeared flights
@@ -149,7 +149,7 @@ def check_prices():
                                 "type": "disappeared_flight",
                                 "airline": prev["airline"],
                                 "flight_number": prev["flight_number"],
-                                "route": f"{route['departure']} → {route['arrival']}",
+                                "route": f"{route['departure']} ↔ {route['arrival']}",
                                 "last_price": prev["price"],
                                 "outbound_date": outbound_date,
                                 "return_date": return_date,
@@ -171,7 +171,7 @@ def check_prices():
                             {
                                 "type": "untracked_flight",
                                 "airline": flight["airline"],
-                                "route": f"{flight['departure']} → {flight['arrival']}",
+                                "route": f"{flight['departure']} ↔ {flight['arrival']}",
                                 "price": flight["price"],
                                 "outbound_date": outbound_date,
                                 "return_date": return_date,
@@ -193,6 +193,7 @@ def check_prices():
                         flight["airline"],
                         flight["flight_number"],
                         flight["outbound_date"],
+                        flight["return_date"],
                     )
                     # No previous record -> new flight
                     if previous is None:
@@ -211,10 +212,11 @@ def check_prices():
                                 "type": "new_flight",
                                 "airline": flight["airline"],
                                 "flight_number": flight["flight_number"],
-                                "route": f"{flight['departure']} → {flight['arrival']}",
+                                "route": f"{flight['departure']} ↔ {flight['arrival']}",
                                 "price": flight["price"],
                                 "outbound_date": outbound_date,
                                 "return_date": return_date,
+                                "stops": flight.get("stops"),
                             }
                         )
                     elif (  # Found previous record of same flight, check for price change
@@ -237,12 +239,14 @@ def check_prices():
                                 {
                                     "type": "price_change",
                                     "airline": flight["airline"],
-                                    "route": f"{flight['departure']} → {flight['arrival']}",
+                                    "flight_number": flight["flight_number"],
+                                    "route": f"{flight['departure']} ↔ {flight['arrival']}",
                                     "old_price": previous.price,
                                     "new_price": flight["price"],
                                     "change": diff,
                                     "outbound_date": outbound_date,
                                     "return_date": return_date,
+                                    "stops": flight.get("stops"),
                                 }
                             )
 

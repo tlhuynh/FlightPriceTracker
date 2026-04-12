@@ -236,6 +236,45 @@ def test_db_connection_failure_aborts_early():
     assert "error" in findings[0]
 
 
+def test_first_run_produces_only_new_flight_findings():
+    # Regression test for a bug where routes with multiple trip lengths (e.g. SGN
+    # with 14-day and 30-day trips) would generate price_change and disappeared_flight
+    # findings within a single run on an empty DB.
+    #
+    # Root cause: get_latest_record() and get_previous_flight_numbers() were not
+    # filtering by return_date. The second trip-length call would find flights saved
+    # by the first call (same outbound_date, different return_date) and treat them
+    # as prior-run data — causing false comparisons within the same run.
+    #
+    # This test uses two date pairs for the same route to replicate that scenario.
+    # With an empty DB (latest_record=None, previous_flights=[]), the only valid
+    # finding type is new_flight.
+    two_trip_lengths = [
+        {"outbound_date": "2026-05-12", "return_date": "2026-05-26"},  # 14-day trip
+        {"outbound_date": "2026-05-12", "return_date": "2026-06-11"},  # 30-day trip
+    ]
+    sgn_route = [{"departure": "IAH", "arrival": "SGN", "trip_lengths": [14, 30]}]
+
+    with (
+        patch("app.checker.ROUTES", sgn_route),
+        patch("app.checker.get_travel_dates", return_value=two_trip_lengths),
+        patch("app.checker.ALERT_THRESHOLD_USD", 50),
+        patch("app.checker.check_db_connection", return_value=True),
+        patch("app.checker.get_account_usage", return_value={"plan_searches_left": 100, "this_month_usage": 0}),
+        patch("app.checker.fetch_flights", return_value=[make_flight(price=800)]),
+        patch("app.checker.get_latest_record", return_value=None),       # empty DB
+        patch("app.checker.get_previous_flight_numbers", return_value=[]),  # empty DB
+        patch("app.checker.save_flight_records"),
+        patch("app.checker.log_api_call"),
+    ):
+        findings = check_prices()
+
+    finding_types = {f["type"] for f in findings}
+    assert finding_types <= {"new_flight"}, (
+        f"First run should only produce new_flight findings, got: {finding_types}"
+    )
+
+
 def test_rate_limit_guard_skips_run():
     # If SerpApi has fewer searches left than needed, skip the entire run to protect
     # the monthly quota. No price_change or new_flight alerts should be generated.
