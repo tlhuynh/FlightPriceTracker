@@ -2,26 +2,25 @@
 
 ## What this project does
 Monitors flight prices for specific routes and airlines, saves price history
-to a database, sends email alerts when prices change, and displays a
-dashboard with price history and reports.
+to a database, and sends email alerts when prices change.
+
+Dashboard is on hold — if built later, it will be a separate project that
+reads directly from the SQL Server database.
 
 ---
 
-## Architecture — two separate projects
+## Architecture
 
-### 1. flight-tracker-python (this project — VS Code)
-Background service handling all data work:
+### flight-tracker-python (this project — VS Code)
+Scheduled background job — runs once per execution, then exits:
 - Fetches flight prices via SerpApi (Google Flights)
-- Runs on a schedule once per day (APScheduler)
 - Detects price changes and sends email alerts (SendGrid)
-- Saves all price history to the database
-- Exposes a REST API via FastAPI so the dashboard can read data
+- Saves all price history to SQL Server
+- Scheduling handled externally (Azure Container Apps Job cron, or run manually)
 
-### 2. flight-tracker-dotnet (separate repo — Rider)
-Frontend + thin backend for visualization:
-- ASP.NET Minimal API — optional proxy/auth layer, calls Python FastAPI
-- Angular — dashboard UI with price history charts and reports
-- ng2-charts for price history visualization
+### Dashboard (on hold — future separate project)
+If built later: a separate repo (e.g. flight-tracker-dotnet) that reads directly
+from the SQL Server database. No FastAPI layer needed.
 
 ---
 
@@ -30,19 +29,14 @@ Frontend + thin backend for visualization:
 | Layer            | Technology              | Notes                          |
 |------------------|-------------------------|--------------------------------|
 | Price data       | SerpApi                 | Google Flights, 250 free/mo    |
-| Scheduler        | APScheduler             | runs once per day              |
+| Scheduling       | Azure Container Apps Job| external cron, runs job + exits|
 | Database         | SQL Server (existing)   | reuse live Azure SQL Server    |
 | Python DB driver | pyodbc + SQLAlchemy     | mssql+pyodbc connection string |
 | Email alerts     | SendGrid                | 100 emails/day free            |
-| Python API       | FastAPI + uvicorn       | port 8000                      |
-| .NET backend     | ASP.NET Minimal API     | port 5000, optional BFF layer  |
-| Frontend         | Angular                 | port 4200 in dev               |
-| Charts           | ng2-charts              | price history graphs           |
-| Containers       | Docker + docker-compose | 3 containers, add before Azure |
-| Cloud            | Azure Container Apps    | all 3 services deployed here   |
-| Image registry   | Azure Container Registry| stores built Docker images     |
+| Containers       | Docker                  | single image for the job       |
+| Cloud            | Azure Container Apps    | Container Apps Job             |
+| Image registry   | Azure Container Registry| stores built Docker image      |
 | Secrets          | Azure Key Vault         | API keys, connection strings   |
-| Angular hosting  | Azure Static Web Apps   | free tier, better for SPA      |
 
 ---
 
@@ -64,14 +58,11 @@ SQL Server everywhere — no SQLite fallback.
 
 ---
 
-## Docker setup (add before first Azure deploy, not from day one)
-Three containers managed by docker-compose:
-- python-service  → tracker + FastAPI (port 8000)
-- dotnet-api      → ASP.NET backend (port 5000)
-- angular-app     → nginx + Angular (port 80)
-
-Containers communicate by service name internally (e.g. http://python-service:8000).
-Python Dockerfile needs Microsoft ODBC driver 18 installed for SQL Server.
+## Docker setup (add before first Azure deploy)
+Single container — the Python job:
+- Runs `python -m app.main`, exits when done
+- Dockerfile needs Microsoft ODBC driver 18 installed for SQL Server
+- No ports exposed, no docker-compose needed
 
 ---
 
@@ -110,30 +101,16 @@ flight-tracker-python/
 ├── .gitignore
 ├── app/
 │   ├── __init__.py
-│   ├── main.py               ← entry point, starts scheduler + API
+│   ├── main.py               ← entry point: init DB, run check, send alerts, exit
 │   ├── config.py             ← routes, airlines, settings
-│   ├── scheduler.py          ← APScheduler job definitions
 │   ├── checker.py            ← fetch prices, detect changes
 │   ├── serpapi.py            ← SerpApi calls, filter by airline
 │   ├── notifier.py           ← email alert logic
-│   ├── db.py                 ← SQLAlchemy DB access
-│   └── api/
-│       ├── __init__.py
-│       ├── routes.py         ← FastAPI endpoints
-│       └── schemas.py        ← Pydantic request/response models
-├── tests/
-│   ├── __init__.py
-│   ├── test_checker.py
-│   └── test_api.py
-└── migrations/               ← Alembic DB migrations (add later)
+│   └── db.py                 ← SQLAlchemy DB access
+└── tests/
+    ├── __init__.py
+    └── test_checker.py
 ```
-
----
-
-## FastAPI endpoints (Python exposes these)
-- GET /prices/{route}?days=90  → price history for a route
-- GET /prices/latest            → latest price per route/airline
-- GET /routes                   → list of watched routes
 
 ---
 
@@ -150,9 +127,10 @@ DB_PASSWORD=your_password_here
 SENDGRID_API_KEY=your_sendgrid_api_key_here
 EMAIL_FROM=you@example.com
 NOTIFY_EMAILS=you@example.com,another@example.com
-CHECK_INTERVAL_HOURS=36
 ALERT_THRESHOLD_USD=50
 ```
+
+CHECK_INTERVAL_HOURS removed — scheduling is handled externally by Azure Container Apps Job cron.
 
 DB_* vars are used with SQLAlchemy URL.create() — avoids ODBC parsing issues with a single DATABASE_URL string.
 Local dev: Azure SQL Edge Docker on port 1434. Production: Azure SQL Server.
@@ -160,9 +138,9 @@ Local dev: Azure SQL Edge Docker on port 1434. Production: Azure SQL Server.
 ---
 
 ## Azure deployment flow
-1. Build Docker images locally
+1. Build Docker image locally
 2. Push to Azure Container Registry (ACR)
-3. Azure Container Apps pulls from ACR and runs containers
+3. Azure Container Apps Job pulls image and runs on cron schedule
 4. Secrets stored in Azure Key Vault, injected as env vars
 5. GitHub Actions automates build → push → deploy pipeline
 
@@ -189,10 +167,7 @@ Local dev: Azure SQL Edge Docker on port 1434. Production: Azure SQL Server.
 - [x] Write db.py (SQLAlchemy models for FlightRecord + ApiCallLog, CRUD functions)
 - [x] Write checker.py (all features: logging, new/disappeared/untracked flight alerts, error handling, dedup, price validation, rate limiting, DB check)
 - [x] Write notifier.py (SendGrid email alerts, grouped by alert type)
-- [x] Write scheduler.py (APScheduler, run every 36 hours)
-- [x] Write main.py (lifespan startup, logging config, uvicorn, router)
-- [x] Write api/schemas.py (Pydantic models with from_attributes)
-- [x] Write api/routes.py (FastAPI endpoints: /routes, /prices/latest, /prices/{dep}/{arr})
+- [x] Write main.py (init DB, quota check, run check + alerts, exit)
 
 - [x] Set up local SQL Server Docker container on Mac (Azure SQL Edge on port 1434)
 - [x] Create FlightTracker database
@@ -212,18 +187,14 @@ Local dev: Azure SQL Edge Docker on port 1434. Production: Azure SQL Server.
 - [x] Fixed WATCHED_AIRLINES to match exact SerpApi strings (United, American, JAL, EVA Air)
 - [x] Fixed save order bug in checker.py — save_flight_records() must run after get_latest_record() loop
 - [x] App fully working end-to-end — alerts firing correctly
+- [x] Removed FastAPI, uvicorn, APScheduler — project is now a pure background job
+- [x] Simplified main.py: init DB → quota check → check prices → send alerts → exit
+- [x] Deployment target decided: Azure Container Apps Job (~$5/month, compute free tier)
 
 ### Up next
-- [ ] Decide on deployment target: Raspberry Pi 5 home server vs Azure
-- [ ] Split main.py into two entry points: job.py (scheduler) + main.py (FastAPI only)
-- [ ] Add Docker (Dockerfile + docker-compose.yml)
-- [ ] Set up deployment pipeline (GitHub Actions CI/CD or Pi equivalent)
+- [ ] Add Docker (Dockerfile)
+- [ ] Set up deployment pipeline (GitHub Actions: build → push to ACR → deploy Container Apps Job)
 - [ ] Add unit tests
-
-### Deployment options under consideration
-- **Raspberry Pi 5 home server** — one-time ~$150, ~$1-3/month electricity, can host multiple projects, Cloudflare Tunnel for remote access. ARM limitation already solved (Azure SQL Edge).
-- **Azure Container Apps** — Container Apps Job for scheduler (scale to zero ~$0), Container App for FastAPI (~$10-15/month), Static Web Apps for Angular (free). Azure SQL Server already paid for.
-- Both require Docker. Pi is cheaper long-term, Azure is more managed.
 
 ### Future checker.py enhancements (TODO)
 - [ ] #2 — Price trend detection (e.g., "dropped 3 times in a row")
@@ -234,12 +205,13 @@ Local dev: Azure SQL Edge Docker on port 1434. Production: Azure SQL Server.
 ---
 
 ## Key decisions already made
+- Python service is a pure background job — no FastAPI, no APScheduler, no web server
+- Dashboard on hold — if built later, it will be a separate project reading DB directly (no FastAPI layer needed)
+- Deployment: Azure Container Apps Job — external cron scheduling, scale to zero, ~$5/month (just ACR)
 - Two separate repos (Python / .NET+Angular) — not a monorepo
 - SQL Server over PostgreSQL — reuse existing Azure instance, zero extra cost
 - Docker added before first Azure deployment, not from day one of dev
 - SQL Server everywhere — local Docker instance for dev, Azure SQL Server for production
-- ASP.NET layer is optional — Angular can call FastAPI directly for MVP
-- Angular hosted on Azure Static Web Apps (free tier)
 - Poetry over plain pip/venv — cleaner dependency management
 - Python 3.12.11 via pyenv — stable, full package support
 - Poetry installed via Homebrew on Mac
