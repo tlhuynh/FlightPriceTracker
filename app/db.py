@@ -3,7 +3,7 @@
 # Consider splitting into models/ and repositories/ folders as the project grows.
 # TODO: Refactor this file when more models and functions are added to keep things organized and maintainable.
 import logging
-from datetime import date, datetime
+from datetime import datetime
 
 from sqlalchemy import (
     create_engine,
@@ -89,9 +89,9 @@ def save_flight_records(flights: list[dict]):
         session.close()
 
 
-# Function to get the latest record for a specific route and airline
+# Function to get the latest record for a specific route, airline, and trip (outbound + return date)
 def get_latest_record(
-    departure: str, arrival: str, airline: str, flight_number: str, outbound_date: str
+    departure: str, arrival: str, airline: str, flight_number: str, outbound_date: str, return_date: str
 ) -> FlightRecord | None:
     session = SessionLocal()
     try:
@@ -103,6 +103,7 @@ def get_latest_record(
                 airline=airline,
                 flight_number=flight_number,
                 outbound_date=outbound_date,
+                return_date=return_date,
             )
             .order_by(FlightRecord.checked_at.desc())
             .first()
@@ -111,16 +112,16 @@ def get_latest_record(
         session.close()
 
 
-# Function to get the list of flight numbers for a specific route and date from the most recent check
+# Function to get the list of flight numbers for a specific route and trip from the most recent check
 def get_previous_flight_numbers(
-    departure: str, arrival: str, outbound_date: str
+    departure: str, arrival: str, outbound_date: str, return_date: str
 ) -> list[dict]:
     session = SessionLocal()
     try:
         latest_check = (
             session.query(func.max(FlightRecord.checked_at))
             .filter_by(
-                departure=departure, arrival=arrival, outbound_date=outbound_date
+                departure=departure, arrival=arrival, outbound_date=outbound_date, return_date=return_date
             )
             .scalar()
         )
@@ -133,6 +134,7 @@ def get_previous_flight_numbers(
                 departure=departure,
                 arrival=arrival,
                 outbound_date=outbound_date,
+                return_date=return_date,
                 checked_at=latest_check,
             )
             .all()
@@ -165,20 +167,6 @@ def log_api_call(endpoint: str, route: str):
     try:
         session.add(ApiCallLog(endpoint=endpoint, route=route))
         session.commit()
-    finally:
-        session.close()
-
-
-# Function to get the count of API calls made in the current month for monitoring and debugging purposes.
-def get_monthly_api_call_count() -> int:
-    session = SessionLocal()
-    try:
-        first_of_month = date.today().replace(day=1)
-        return (
-            session.query(ApiCallLog)
-            .filter(ApiCallLog.called_at >= first_of_month)
-            .count()
-        )
     finally:
         session.close()
 

@@ -1,4 +1,4 @@
-# Price checker — fetches new prices, compares against last saved price, triggers alerts on changes.
+# Price checker — fetches new prices, compares against last saved price, returns a list of findings.
 import logging
 from app.config import ROUTES, ALERT_THRESHOLD_USD, get_travel_dates
 from app.serpapi import fetch_flights, get_account_usage
@@ -13,7 +13,7 @@ from app.db import (
 logger = logging.getLogger(__name__)
 
 
-# Main function to check prices and generate alerts
+# Main function to check prices and return a list of findings (new flights, price changes, etc.)
 def check_prices():
     logger.info("Starting price check...")
     if not check_db_connection():
@@ -51,7 +51,7 @@ def check_prices():
             "SerpApi usage check failed — proceeding without rate limit validation. Calls needed for this check: %d.",
             calls_needed,
         )
-    alerts = []
+    findings = []
 
     for route in ROUTES:
         travel_dates = get_travel_dates(route["trip_lengths"])
@@ -124,7 +124,7 @@ def check_prices():
 
                 # Get previous flights before comparing or saving new ones
                 previous_flights = get_previous_flight_numbers(
-                    route["departure"], route["arrival"], outbound_date
+                    route["departure"], route["arrival"], outbound_date, return_date
                 )
 
                 # Check for disappeared flights
@@ -144,19 +144,19 @@ def check_prices():
                             return_date,
                             prev["price"],
                         )
-                        alerts.append(
+                        findings.append(
                             {
                                 "type": "disappeared_flight",
                                 "airline": prev["airline"],
                                 "flight_number": prev["flight_number"],
-                                "route": f"{route['departure']} → {route['arrival']}",
+                                "route": f"{route['departure']} ↔ {route['arrival']}",
                                 "last_price": prev["price"],
                                 "outbound_date": outbound_date,
                                 "return_date": return_date,
                             }
                         )
 
-                # Handle per flight checking and alerts
+                # Handle per-flight price comparison and findings
                 for flight in valid_flights:
                     # Handle flight without flight number
                     if not flight.get("flight_number"):
@@ -167,11 +167,11 @@ def check_prices():
                             outbound_date,
                             return_date,
                         )
-                        alerts.append(
+                        findings.append(
                             {
                                 "type": "untracked_flight",
                                 "airline": flight["airline"],
-                                "route": f"{flight['departure']} → {flight['arrival']}",
+                                "route": f"{flight['departure']} ↔ {flight['arrival']}",
                                 "price": flight["price"],
                                 "outbound_date": outbound_date,
                                 "return_date": return_date,
@@ -185,7 +185,6 @@ def check_prices():
 
                     # Flight with flight number
 
-
                     # Look up the most recent record for this specific flight
                     # (same route, airline, flight number, and date) to compare prices.
                     previous = get_latest_record(
@@ -194,6 +193,7 @@ def check_prices():
                         flight["airline"],
                         flight["flight_number"],
                         flight["outbound_date"],
+                        flight["return_date"],
                     )
                     # No previous record -> new flight
                     if previous is None:
@@ -207,15 +207,16 @@ def check_prices():
                             return_date,
                             flight["price"],
                         )
-                        alerts.append(
+                        findings.append(
                             {
                                 "type": "new_flight",
                                 "airline": flight["airline"],
                                 "flight_number": flight["flight_number"],
-                                "route": f"{flight['departure']} → {flight['arrival']}",
+                                "route": f"{flight['departure']} ↔ {flight['arrival']}",
                                 "price": flight["price"],
                                 "outbound_date": outbound_date,
                                 "return_date": return_date,
+                                "stops": flight.get("stops"),
                             }
                         )
                     elif (  # Found previous record of same flight, check for price change
@@ -234,16 +235,18 @@ def check_prices():
                                 flight["price"],
                                 diff,
                             )
-                            alerts.append(
+                            findings.append(
                                 {
                                     "type": "price_change",
                                     "airline": flight["airline"],
-                                    "route": f"{flight['departure']} → {flight['arrival']}",
+                                    "flight_number": flight["flight_number"],
+                                    "route": f"{flight['departure']} ↔ {flight['arrival']}",
                                     "old_price": previous.price,
                                     "new_price": flight["price"],
                                     "change": diff,
                                     "outbound_date": outbound_date,
                                     "return_date": return_date,
+                                    "stops": flight.get("stops"),
                                 }
                             )
 
@@ -267,5 +270,5 @@ def check_prices():
                     str(e),
                 )
 
-    logger.info("Price check completed. Total alerts generated: %d.", len(alerts))
-    return alerts
+    logger.info("Price check complete. %d finding(s) this run.", len(findings))
+    return findings

@@ -1,4 +1,4 @@
-# Configuration — routes to watch, airlines, check interval, and env var loading.
+# Configuration — routes to watch, airlines, and env var loading.
 import os
 from datetime import date, timedelta
 
@@ -22,7 +22,6 @@ NOTIFY_EMAILS = os.getenv(
 ).split(
     ","
 )  # Split by comma for multiple emails; in Python, this automatically creates a list. If NOTIFY_EMAILS is empty, it will be [''] which is fine for our use case.
-CHECK_INTERVAL_HOURS = int(os.getenv("CHECK_INTERVAL_HOURS", "36"))
 ALERT_THRESHOLD_USD = int(os.getenv("ALERT_THRESHOLD_USD", "50"))
 
 # Define routes to watch: list of dicts with departure and arrival airport codes.
