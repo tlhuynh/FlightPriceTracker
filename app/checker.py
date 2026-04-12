@@ -185,7 +185,6 @@ def check_prices():
 
                     # Flight with flight number
 
-
                     # Look up the most recent record for this specific flight
                     # (same route, airline, flight number, and date) to compare prices.
                     previous = get_latest_record(
