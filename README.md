@@ -21,6 +21,14 @@ Alert types reported per run:
 
 ---
 
+## Email preview
+
+![Email preview](docs/email_preview.jpg)
+
+[View full HTML preview](docs/email_preview.html)
+
+---
+
 ## Routes and airlines watched
 
 Routes, airlines, trip lengths, and outbound date offsets are all configured in `app/config.py`.
