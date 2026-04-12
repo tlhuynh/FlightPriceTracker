@@ -214,11 +214,16 @@ Local dev: Azure SQL Edge Docker on port 1434. Production: Azure SQL Server.
 - [x] App fully working end-to-end — alerts firing correctly
 
 ### Up next
-- [ ] Set up GitHub Actions for CI/CD
-- [ ] Set up Azure services (Container Registry, Container Apps, Key Vault)
+- [ ] Decide on deployment target: Raspberry Pi 5 home server vs Azure
+- [ ] Split main.py into two entry points: job.py (scheduler) + main.py (FastAPI only)
 - [ ] Add Docker (Dockerfile + docker-compose.yml)
-- [ ] Deploy to Azure Container Apps
+- [ ] Set up deployment pipeline (GitHub Actions CI/CD or Pi equivalent)
 - [ ] Add unit tests
+
+### Deployment options under consideration
+- **Raspberry Pi 5 home server** — one-time ~$150, ~$1-3/month electricity, can host multiple projects, Cloudflare Tunnel for remote access. ARM limitation already solved (Azure SQL Edge).
+- **Azure Container Apps** — Container Apps Job for scheduler (scale to zero ~$0), Container App for FastAPI (~$10-15/month), Static Web Apps for Angular (free). Azure SQL Server already paid for.
+- Both require Docker. Pi is cheaper long-term, Azure is more managed.
 
 ### Future checker.py enhancements (TODO)
 - [ ] #2 — Price trend detection (e.g., "dropped 3 times in a row")
