@@ -1,11 +1,11 @@
-# Entry point — initializes the database and runs a single price check with alerts.
+# Entry point — initializes the database, runs a single price check, and sends one summary email.
 import logging
 
 from app.db import init_db
 from app.config import ROUTES, get_travel_dates
 from app.serpapi import get_account_usage
 from app.checker import check_prices
-from app.notifier import send_alerts
+from app.notifier import send_alert
 
 
 logging.basicConfig(
@@ -29,8 +29,8 @@ def run():
         )
 
     if usage is None or usage["plan_searches_left"] >= calls_needed + 10:
-        alerts = check_prices()
-        send_alerts(alerts)
+        findings = check_prices()
+        send_alert(findings)
         if usage is not None:
             logger.info(
                 "Price check complete. Approximately %d SerpApi calls remaining this month.",

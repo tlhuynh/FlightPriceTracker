@@ -1,4 +1,4 @@
-# Price checker — fetches new prices, compares against last saved price, triggers alerts on changes.
+# Price checker — fetches new prices, compares against last saved price, returns a list of findings.
 import logging
 from app.config import ROUTES, ALERT_THRESHOLD_USD, get_travel_dates
 from app.serpapi import fetch_flights, get_account_usage
@@ -13,7 +13,7 @@ from app.db import (
 logger = logging.getLogger(__name__)
 
 
-# Main function to check prices and generate alerts
+# Main function to check prices and return a list of findings (new flights, price changes, etc.)
 def check_prices():
     logger.info("Starting price check...")
     if not check_db_connection():
@@ -51,7 +51,7 @@ def check_prices():
             "SerpApi usage check failed — proceeding without rate limit validation. Calls needed for this check: %d.",
             calls_needed,
         )
-    alerts = []
+    findings = []
 
     for route in ROUTES:
         travel_dates = get_travel_dates(route["trip_lengths"])
@@ -144,7 +144,7 @@ def check_prices():
                             return_date,
                             prev["price"],
                         )
-                        alerts.append(
+                        findings.append(
                             {
                                 "type": "disappeared_flight",
                                 "airline": prev["airline"],
@@ -156,7 +156,7 @@ def check_prices():
                             }
                         )
 
-                # Handle per flight checking and alerts
+                # Handle per-flight price comparison and findings
                 for flight in valid_flights:
                     # Handle flight without flight number
                     if not flight.get("flight_number"):
@@ -167,7 +167,7 @@ def check_prices():
                             outbound_date,
                             return_date,
                         )
-                        alerts.append(
+                        findings.append(
                             {
                                 "type": "untracked_flight",
                                 "airline": flight["airline"],
@@ -206,7 +206,7 @@ def check_prices():
                             return_date,
                             flight["price"],
                         )
-                        alerts.append(
+                        findings.append(
                             {
                                 "type": "new_flight",
                                 "airline": flight["airline"],
@@ -233,7 +233,7 @@ def check_prices():
                                 flight["price"],
                                 diff,
                             )
-                            alerts.append(
+                            findings.append(
                                 {
                                     "type": "price_change",
                                     "airline": flight["airline"],
@@ -266,5 +266,5 @@ def check_prices():
                     str(e),
                 )
 
-    logger.info("Price check completed. Total alerts generated: %d.", len(alerts))
-    return alerts
+    logger.info("Price check complete. %d finding(s) this run.", len(findings))
+    return findings

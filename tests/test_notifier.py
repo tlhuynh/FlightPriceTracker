@@ -2,18 +2,18 @@
 #
 # Two things to test:
 #   1. build_email_body() — pure function, no mocks needed, just call it and check output
-#   2. send_alerts()      — calls SendGrid, so we mock SendGridAPIClient to avoid
+#   2. send_alert()       — calls SendGrid, so we mock SendGridAPIClient to avoid
 #                           needing a real API key or sending actual emails
 
 from unittest.mock import patch, MagicMock
-from app.notifier import send_alerts, build_email_body
+from app.notifier import send_alert, build_email_body
 
 
 # --- build_email_body tests (pure function — no mocks needed) ---
 
 def test_email_body_includes_new_flight_section():
     # A new_flight alert should appear under the "New Flights Found" heading.
-    alerts = [
+    findings = [
         {
             "type": "new_flight",
             "airline": "United",
@@ -24,7 +24,7 @@ def test_email_body_includes_new_flight_section():
         }
     ]
 
-    body = build_email_body(alerts)
+    body = build_email_body(findings)
 
     assert "New Flights Found" in body
     assert "UA837" in body
@@ -33,7 +33,7 @@ def test_email_body_includes_new_flight_section():
 
 def test_email_body_includes_price_change_section():
     # A price_change alert should appear under "Price Changes" with both old and new price.
-    alerts = [
+    findings = [
         {
             "type": "price_change",
             "airline": "United",
@@ -45,7 +45,7 @@ def test_email_body_includes_price_change_section():
         }
     ]
 
-    body = build_email_body(alerts)
+    body = build_email_body(findings)
 
     assert "Price Changes" in body
     assert "800" in body
@@ -53,7 +53,7 @@ def test_email_body_includes_price_change_section():
 
 
 def test_email_body_includes_disappeared_flight_section():
-    alerts = [
+    findings = [
         {
             "type": "disappeared_flight",
             "airline": "United",
@@ -65,7 +65,7 @@ def test_email_body_includes_disappeared_flight_section():
         }
     ]
 
-    body = build_email_body(alerts)
+    body = build_email_body(findings)
 
     assert "Disappeared Flights" in body
     assert "UA837" in body
@@ -74,7 +74,7 @@ def test_email_body_includes_disappeared_flight_section():
 def test_email_body_omits_empty_sections():
     # If there are no price_change alerts, the "Price Changes" section shouldn't appear.
     # Only sections with actual alerts should be included to keep the email clean.
-    alerts = [
+    findings = [
         {
             "type": "new_flight",
             "airline": "United",
@@ -85,7 +85,7 @@ def test_email_body_omits_empty_sections():
         }
     ]
 
-    body = build_email_body(alerts)
+    body = build_email_body(findings)
 
     assert "New Flights Found" in body
     assert "Price Changes" not in body
@@ -94,7 +94,7 @@ def test_email_body_omits_empty_sections():
 
 def test_email_body_handles_multiple_alert_types():
     # When multiple alert types exist, all relevant sections should appear.
-    alerts = [
+    findings = [
         {
             "type": "new_flight",
             "airline": "United",
@@ -114,27 +114,27 @@ def test_email_body_handles_multiple_alert_types():
         },
     ]
 
-    body = build_email_body(alerts)
+    body = build_email_body(findings)
 
     assert "New Flights Found" in body
     assert "Price Changes" in body
 
 
-# --- send_alerts tests (mocks SendGrid) ---
+# --- send_alert tests (mocks SendGrid) ---
 
-def test_send_alerts_does_nothing_when_empty():
+def test_send_alert_does_nothing_when_empty():
     # No alerts = no email. We verify SendGrid is never called at all.
     with patch("app.notifier.SendGridAPIClient") as mock_client:
-        send_alerts([])
+        send_alert([])
 
     # The SendGrid client should not have been instantiated at all
     mock_client.assert_not_called()
 
 
-def test_send_alerts_calls_sendgrid_with_alerts():
-    # When there are alerts, send_alerts() should instantiate the SendGrid client
+def test_send_alert_calls_sendgrid_with_findings():
+    # When there are findings, send_alert() should instantiate the SendGrid client
     # and call .send() exactly once.
-    alerts = [
+    findings = [
         {
             "type": "new_flight",
             "airline": "United",
@@ -150,16 +150,16 @@ def test_send_alerts_calls_sendgrid_with_alerts():
     mock_instance.send.return_value = MagicMock(status_code=202)
 
     with patch("app.notifier.SendGridAPIClient", return_value=mock_instance):
-        send_alerts(alerts)
+        send_alert(findings)
 
     # Verify .send() was called exactly once
     mock_instance.send.assert_called_once()
 
 
-def test_send_alerts_does_not_raise_on_sendgrid_failure():
-    # If SendGrid fails (bad key, network issue), send_alerts() should log the error
+def test_send_alert_does_not_raise_on_sendgrid_failure():
+    # If SendGrid fails (bad key, network issue), send_alert() should log the error
     # but not crash the whole job. A failed email is not worth taking down the run.
-    alerts = [
+    findings = [
         {
             "type": "new_flight",
             "airline": "United",
@@ -175,4 +175,4 @@ def test_send_alerts_does_not_raise_on_sendgrid_failure():
 
     with patch("app.notifier.SendGridAPIClient", return_value=mock_instance):
         # Should complete without raising
-        send_alerts(alerts)
+        send_alert(findings)

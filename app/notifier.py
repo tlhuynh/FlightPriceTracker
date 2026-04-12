@@ -1,4 +1,4 @@
-# Notifier — sends email alerts when a price change is detected.
+# Notifier — sends a single summary email for all findings from one run.
 import logging
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
@@ -9,8 +9,8 @@ logger = logging.getLogger(__name__)
 
 
 # TODO update the layout of the email body to be more readable and include more details about the flight and price change.
-# Build an email notification with the given alerts.
-def build_email_body(alerts: list[dict]) -> str:
+# Build an email body summarising all findings from one run.
+def build_email_body(findings: list[dict]) -> str:
     sections = {
         "new_flight": [],
         "price_change": [],
@@ -19,7 +19,7 @@ def build_email_body(alerts: list[dict]) -> str:
         "error": [],
     }
 
-    for alert in alerts:
+    for alert in findings:
         alert_type = alert.get("type", "error")
         if alert_type in sections:
             sections[alert_type].append(alert)
@@ -70,13 +70,13 @@ def build_email_body(alerts: list[dict]) -> str:
     return "\n".join(lines)
 
 
-# Send email alerts for the given list of alerts. Each alert is a dict with details about the flight and price change.
-def send_alerts(alerts: list[dict]):
-    if not alerts:
-        logger.info("No alerts to send.")
+# Send one summary email for all findings from a single run.
+def send_alert(findings: list[dict]):
+    if not findings:
+        logger.info("No findings to report.")
         return
 
-    body = build_email_body(alerts)
+    body = build_email_body(findings)
 
     message = Mail(
         from_email=EMAIL_FROM,

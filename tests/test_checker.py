@@ -2,7 +2,7 @@
 #
 # Strategy: check_prices() calls the DB and SerpApi internally, so every external
 # call is replaced with a mock. This lets us feed in exactly the data we want and
-# assert on the alerts returned — no real database or network required.
+# assert on the findings returned — no real database or network required.
 #
 # The key mocking rule in Python: patch the name where it's *used*, not where it's
 # defined. checker.py does `from app.serpapi import fetch_flights`, so the live
@@ -105,82 +105,82 @@ def run_check(
 def test_new_flight_alert():
     # When a flight has no previous DB record, it's the first time we've seen it.
     # checker.py should emit a new_flight alert so we know a new option appeared.
-    alerts = run_check(
+    findings = run_check(
         fetched_flights=[make_flight(price=800)],
         latest_record=None,  # None = get_latest_record returned nothing = first ever record
     )
 
-    assert len(alerts) == 1
-    assert alerts[0]["type"] == "new_flight"
-    assert alerts[0]["price"] == 800
-    assert alerts[0]["airline"] == "United"
+    assert len(findings) == 1
+    assert findings[0]["type"] == "new_flight"
+    assert findings[0]["price"] == 800
+    assert findings[0]["airline"] == "United"
 
 
 def test_price_change_alert_fires_at_threshold():
     # Previous price $800, new price $700 → $100 drop, which meets the $50 threshold.
     # A price_change alert should fire with the correct old/new/change values.
-    alerts = run_check(
+    findings = run_check(
         fetched_flights=[make_flight(price=700)],
         latest_record=make_record(price=800),
         alert_threshold=50,
     )
 
-    assert len(alerts) == 1
-    assert alerts[0]["type"] == "price_change"
-    assert alerts[0]["old_price"] == 800
-    assert alerts[0]["new_price"] == 700
-    assert alerts[0]["change"] == -100  # negative = price dropped
+    assert len(findings) == 1
+    assert findings[0]["type"] == "price_change"
+    assert findings[0]["old_price"] == 800
+    assert findings[0]["new_price"] == 700
+    assert findings[0]["change"] == -100  # negative = price dropped
 
 
 def test_price_change_alert_fires_on_increase():
     # Price increases should also trigger alerts — we want to know if prices go up.
-    alerts = run_check(
+    findings = run_check(
         fetched_flights=[make_flight(price=900)],
         latest_record=make_record(price=800),
         alert_threshold=50,
     )
 
-    assert len(alerts) == 1
-    assert alerts[0]["type"] == "price_change"
-    assert alerts[0]["change"] == 100  # positive = price went up
+    assert len(findings) == 1
+    assert findings[0]["type"] == "price_change"
+    assert findings[0]["change"] == 100  # positive = price went up
 
 
 def test_price_change_alert_silent_below_threshold():
     # $20 change on a $50 threshold — no alert. Small fluctuations are noise.
-    alerts = run_check(
+    findings = run_check(
         fetched_flights=[make_flight(price=820)],
         latest_record=make_record(price=800),
         alert_threshold=50,
     )
 
-    assert alerts == []
+    assert findings == []
 
 
 def test_no_alert_when_price_unchanged():
     # Same price as last check — no alert at all.
-    alerts = run_check(
+    findings = run_check(
         fetched_flights=[make_flight(price=800)],
         latest_record=make_record(price=800),
         alert_threshold=50,
     )
 
-    assert alerts == []
+    assert findings == []
 
 
 def test_disappeared_flight_alert():
     # A flight was in the DB last check but is missing from this run's results.
     # This means the airline stopped offering that flight for those dates.
-    alerts = run_check(
+    findings = run_check(
         fetched_flights=[],  # SerpApi returned nothing this run
         previous_flights=[
             {"flight_number": "UA837", "airline": "United", "price": 800}
         ],
     )
 
-    assert len(alerts) == 1
-    assert alerts[0]["type"] == "disappeared_flight"
-    assert alerts[0]["flight_number"] == "UA837"
-    assert alerts[0]["last_price"] == 800
+    assert len(findings) == 1
+    assert findings[0]["type"] == "disappeared_flight"
+    assert findings[0]["flight_number"] == "UA837"
+    assert findings[0]["last_price"] == 800
 
 
 def test_duplicate_flights_deduplicated():
@@ -189,29 +189,29 @@ def test_duplicate_flights_deduplicated():
     # We should get exactly one new_flight alert, not two.
     duplicate = make_flight(flight_number="UA837", price=800)
 
-    alerts = run_check(
+    findings = run_check(
         fetched_flights=[duplicate, duplicate],
         latest_record=None,  # first time seeing this flight
     )
 
-    new_flight_alerts = [a for a in alerts if a["type"] == "new_flight"]
-    assert len(new_flight_alerts) == 1
+    new_flight_findings = [f for f in findings if f["type"] == "new_flight"]
+    assert len(new_flight_findings) == 1
 
 
 def test_zero_price_flights_filtered_out():
     # Flights with price=0 are invalid data from SerpApi and should be ignored entirely.
     # No alerts, nothing saved.
-    alerts = run_check(fetched_flights=[make_flight(price=0)])
+    findings = run_check(fetched_flights=[make_flight(price=0)])
 
-    assert alerts == []
+    assert findings == []
 
 
 def test_none_price_flights_filtered_out():
     # Same as above but when the price field is missing entirely.
     no_price_flight = {**make_flight(), "price": None}
-    alerts = run_check(fetched_flights=[no_price_flight])
+    findings = run_check(fetched_flights=[no_price_flight])
 
-    assert alerts == []
+    assert findings == []
 
 
 def test_untracked_flight_no_flight_number():
@@ -221,29 +221,29 @@ def test_untracked_flight_no_flight_number():
     flight = make_flight()
     flight["flight_number"] = None
 
-    alerts = run_check(fetched_flights=[flight])
+    findings = run_check(fetched_flights=[flight])
 
-    assert len(alerts) == 1
-    assert alerts[0]["type"] == "untracked_flight"
+    assert len(findings) == 1
+    assert findings[0]["type"] == "untracked_flight"
 
 
 def test_db_connection_failure_aborts_early():
     # If the database is unreachable, there's nothing to compare against or save to.
     # check_prices() should abort immediately and return an error alert.
-    alerts = run_check(fetched_flights=[make_flight()], db_ok=False)
+    findings = run_check(fetched_flights=[make_flight()], db_ok=False)
 
-    assert len(alerts) == 1
-    assert "error" in alerts[0]
+    assert len(findings) == 1
+    assert "error" in findings[0]
 
 
 def test_rate_limit_guard_skips_run():
     # If SerpApi has fewer searches left than needed, skip the entire run to protect
     # the monthly quota. No price_change or new_flight alerts should be generated.
-    alerts = run_check(
+    findings = run_check(
         fetched_flights=[make_flight()],
         usage={"plan_searches_left": 0, "this_month_usage": 250},
     )
 
-    alert_types = [a.get("type") for a in alerts]
-    assert "new_flight" not in alert_types
-    assert "price_change" not in alert_types
+    finding_types = [f.get("type") for f in findings]
+    assert "new_flight" not in finding_types
+    assert "price_change" not in finding_types
