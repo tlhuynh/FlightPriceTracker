@@ -3,7 +3,7 @@
 # Consider splitting into models/ and repositories/ folders as the project grows.
 # TODO: Refactor this file when more models and functions are added to keep things organized and maintainable.
 import logging
-from datetime import date, datetime
+from datetime import datetime
 
 from sqlalchemy import (
     create_engine,
@@ -165,20 +165,6 @@ def log_api_call(endpoint: str, route: str):
     try:
         session.add(ApiCallLog(endpoint=endpoint, route=route))
         session.commit()
-    finally:
-        session.close()
-
-
-# Function to get the count of API calls made in the current month for monitoring and debugging purposes.
-def get_monthly_api_call_count() -> int:
-    session = SessionLocal()
-    try:
-        first_of_month = date.today().replace(day=1)
-        return (
-            session.query(ApiCallLog)
-            .filter(ApiCallLog.called_at >= first_of_month)
-            .count()
-        )
     finally:
         session.close()
 
