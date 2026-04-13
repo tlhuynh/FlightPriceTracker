@@ -1,0 +1,10 @@
+# Never bake secrets into the image — Azure injects these as env vars at runtime
+.env
+
+# Not needed at runtime
+tests/
+docs/
+session-notes/
+*.md
+.python-version
+.gitignore
