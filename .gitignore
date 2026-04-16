@@ -12,6 +12,9 @@ venv/
 # Environment secrets
 .env
 
+# Private trip configuration
+trips.json
+
 # IDE
 .vscode/
 .idea/

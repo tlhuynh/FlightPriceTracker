@@ -3,9 +3,7 @@ name: Build and Deploy
 # Trigger this workflow on every push to main.
 # This means every time you merge or push code, the image is rebuilt and deployed automatically.
 on:
-  push:
-    branches:
-      - main
+  workflow_dispatch: # disabled — re-enable push trigger when ACR and Container App Job are restored
 
 jobs:
   build-and-deploy:

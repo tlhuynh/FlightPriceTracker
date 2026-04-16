@@ -1,6 +1,6 @@
-# flight-tracker-python
+# Flight Prices Tracker
 
-A scheduled background job that monitors flight prices for specific routes and airlines, saves price history to a SQL Server database, and sends a summary email alert when prices change.
+A background job that monitors flight prices for a specific route, saves price history to a SQL Server database, and outputs an HTML report — either as a local file or via email when deployed.
 
 ---
 
@@ -9,29 +9,29 @@ A scheduled background job that monitors flight prices for specific routes and a
 Runs once per execution, then exits:
 
 1. Checks SerpApi quota — skips the run if not enough searches remain
-2. Fetches current prices from Google Flights via SerpApi for all watched routes and dates
-3. Compares against the last saved price in the database
-4. Sends one HTML summary email via SendGrid if anything changed
-5. Saves all fetched prices to the database for future comparisons
-
-Alert types reported per run:
-- **New flight** — a flight number not seen before for that route and date
-- **Price change** — price moved by more than the configured threshold
-- **Disappeared flight** — a previously seen flight no longer appearing in results
+2. Fetches current flights and price insights from Google Flights via SerpApi for each configured trip
+3. Compares the current lowest price against the last saved price in the database
+4. Saves route insights and individual flight snapshots to the database
+5. Outputs an HTML report — written to a local file or emailed via SendGrid (when deployed)
 
 ---
 
-## Email preview
+## What the report shows
 
-![Email preview](docs/email_preview.jpg)
+One section per trip:
 
-[View full HTML preview](docs/email_preview.html)
+- **Lowest price** — cheapest available right now
+- **Price level** — Google's verdict: LOW / TYPICAL / HIGH vs historical norms
+- **Typical price range** — what Google considers normal for this route and date
+- **Price change** — how the lowest price moved since the last run
+- **Flight table** — all watched airline flights sorted by price, with flight number, stops, times, and duration
 
 ---
 
-## Routes and airlines watched
+## Routes and trips
 
-Routes, airlines, trip lengths, and outbound date offsets are all configured in `app/config.py`.
+Route and trip dates are configured in `trips.json` (gitignored — copy from `trips.example.json`).
+Airlines to watch are configured in `app/config.py`.
 
 ---
 
@@ -42,9 +42,10 @@ Routes, airlines, trip lengths, and outbound date offsets are all configured in 
 | Price data | SerpApi (Google Flights) |
 | Database | SQL Server (Azure SQL / local Docker) |
 | Python DB driver | pyodbc + SQLAlchemy |
-| Email alerts | SendGrid |
-| Scheduling | Azure Container Apps Job (external cron) |
+| Local output | HTML file |
+| Deployed output | SendGrid email |
 | Container | Docker |
+| Scheduling | Azure Container Apps Job (external cron) |
 
 ---
 
@@ -52,17 +53,17 @@ Routes, airlines, trip lengths, and outbound date offsets are all configured in 
 
 ```
 app/
-├── main.py        — entry point: init DB → quota check → check prices → send alert → exit
-├── config.py      — routes, airlines, env var loading
-├── checker.py     — fetch prices, compare against DB, build findings list
+├── main.py        — entry point: init DB → quota check → check prices → output report → exit
+├── config.py      — airlines, env var loading, trips.json loader
+├── checker.py     — fetch price insights + flights, compare against DB, build findings
 ├── serpapi.py     — SerpApi API client
-├── notifier.py    — HTML email builder and SendGrid sender
+├── reporter.py    — HTML report builder and file writer
 └── db.py          — SQLAlchemy models and DB access functions
 
 tests/
-├── test_checker.py   — 12 tests for price comparison logic
-├── test_serpapi.py   — 6 tests for API filtering and error handling
-└── test_notifier.py  — 9 tests for email formatting and send behaviour
+├── test_checker.py   — price comparison logic and error handling
+├── test_serpapi.py   — API response parsing and filtering
+└── test_reporter.py  — HTML formatting and file output
 ```
 
 ---
@@ -80,6 +81,9 @@ poetry install
 
 # Copy and fill in environment variables
 cp .env.example .env
+
+# Copy and fill in trip configuration
+cp trips.example.json trips.json
 ```
 
 Start a local SQL Server instance (Azure SQL Edge — ARM compatible):
@@ -96,13 +100,13 @@ Create the `FlightTracker` database in Azure Data Studio or via `sqlcmd`, then r
 poetry run python -m app.main
 ```
 
-The app creates tables automatically on first run.
+The app creates tables automatically on first run. The HTML report is saved to `REPORT_OUTPUT_DIR`.
 
 ---
 
 ## Environment variables
 
-Copy `.env.example` to `.env` and fill in your values. All available variables and their descriptions are documented in that file.
+Copy `.env.example` to `.env` and fill in your values. All variables are documented in that file.
 
 ---
 
@@ -113,4 +117,3 @@ poetry run pytest tests/ -v
 ```
 
 No real database or API key needed — all external calls are mocked.
-

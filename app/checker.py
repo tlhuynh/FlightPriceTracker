@@ -1,274 +1,133 @@
-# Price checker — fetches new prices, compares against last saved price, returns a list of findings.
+# Price checker — fetches price insights and flights per trip, compares against last run, returns findings.
 import logging
-from app.config import ROUTES, ALERT_THRESHOLD_USD, get_travel_dates
+from app.config import ROUTE, TRIPS
 from app.serpapi import fetch_flights, get_account_usage
 from app.db import (
-    save_flight_records,
-    get_latest_record,
-    get_previous_flight_numbers,
-    check_db_connection,
+    save_route_insight,
+    get_latest_route_insight,
+    save_flight_snapshots,
     log_api_call,
+    check_db_connection,
 )
 
 logger = logging.getLogger(__name__)
 
 
-# Main function to check prices and return a list of findings (new flights, price changes, etc.)
-def check_prices():
+def check_prices() -> list[dict]:
     logger.info("Starting price check...")
+
     if not check_db_connection():
-        logger.error(
-            "Database connection failed. Please check your DATABASE_URL and ensure the database is running."
-        )
-        return [
-            {
-                "error": "Database connection failed. Please check your DATABASE_URL and ensure the database is running."
-            }
-        ]
+        logger.error("Database connection failed.")
+        return [{"type": "error", "error": "Database connection failed."}]
 
-    calls_needed = sum(len(get_travel_dates(r["trip_lengths"])) for r in ROUTES)
     usage = get_account_usage()
-    if usage is not None and usage["plan_searches_left"] < calls_needed:
+    calls_needed = len(TRIPS)
+
+    if usage is not None and usage["plan_searches_left"] < calls_needed + 10:
         logger.warning(
-            "Rate limit warning: only %d SerpApi searches left this month, need %d. Skipping check.",
+            "Rate limit warning: only %d SerpApi searches left, need %d. Skipping check.",
             usage["plan_searches_left"],
             calls_needed,
         )
         return [
             {
-                "error": f"Rate limit warning: only {usage['plan_searches_left']} SerpApi searches left this month, need {calls_needed}."
+                "type": "error",
+                "error": f"Only {usage['plan_searches_left']} SerpApi searches left, need {calls_needed}.",
             }
         ]
 
-    if usage is not None:
-        logger.info(
-            "SerpApi searches left: %d. Calls needed for this check: %d.",
-            usage["plan_searches_left"],
-            calls_needed,
-        )
-    else:
-        logger.warning(
-            "SerpApi usage check failed — proceeding without rate limit validation. Calls needed for this check: %d.",
-            calls_needed,
-        )
     findings = []
+    departure = ROUTE["departure"]
+    arrival = ROUTE["arrival"]
 
-    for route in ROUTES:
-        travel_dates = get_travel_dates(route["trip_lengths"])
-        logger.info(
-            "Checking flight information for route: %s → %s",
-            route["departure"],
-            route["arrival"],
-        )
-        for travel_date in travel_dates:
-            outbound_date = travel_date["outbound_date"]
-            return_date = travel_date["return_date"]
-            try:
-                log_api_call("serpapi", f"{route['departure']}-{route['arrival']}")
-                flights = fetch_flights(
-                    route["departure"], route["arrival"], outbound_date, return_date
-                )
-                # Check for duplicates based on flight number and remove them, since SerpApi can sometimes return duplicates.
-                seen = set()
-                unique_flights = []
-                for f in flights:
-                    key = f.get("flight_number")
-                    if key and key not in seen:
-                        seen.add(key)
-                        unique_flights.append(f)
-                    elif key and key in seen:
-                        # Log that we're skipping a duplicate flight based on flight number.
-                        logger.debug(
-                            "Duplicate flight %s skipped for %s → %s on %s – %s.",
-                            key,
-                            route["departure"],
-                            route["arrival"],
-                            outbound_date,
-                            return_date,
-                        )
-                    elif not key:
-                        # Still include flights without a flight number, but log that we're doing so.
-                        logger.warning(
-                            "Flight without flight number found for route %s → %s on %s – %s. Including in results but cannot check for duplicates.",
-                            route["departure"],
-                            route["arrival"],
-                            outbound_date,
-                            return_date,
-                        )
-                        unique_flights.append(f)
+    for trip in TRIPS:
+        outbound_date = trip["outbound_date"]
+        return_date = trip["return_date"]
 
-                if len(unique_flights) < len(flights):
-                    logger.warning(
-                        "Filtered out %d duplicate flights for route %s → %s on %s – %s.",
-                        len(flights) - len(unique_flights),
-                        route["departure"],
-                        route["arrival"],
-                        outbound_date,
-                        return_date,
-                    )
+        try:
+            log_api_call("serpapi", f"{departure}-{arrival}")
+            result = fetch_flights(departure, arrival, outbound_date, return_date)
 
-                # Filter out flights with missing or zero price, since those are likely errors in the data and would cause false alerts.
-                valid_flights = [
-                    f for f in unique_flights if f.get("price") and f["price"] > 0
-                ]
+            price_insights = result["price_insights"]
+            flights = result["flights"]
+            lowest_price = price_insights.get("lowest_price")
+            price_level = price_insights.get("price_level")
+            typical_low = price_insights.get("typical_low")
+            typical_high = price_insights.get("typical_high")
 
-                if len(valid_flights) < len(unique_flights):
-                    logger.warning(
-                        "Filtered out %d flights with invalid prices for route %s → %s on %s – %s.",
-                        len(unique_flights) - len(valid_flights),
-                        route["departure"],
-                        route["arrival"],
-                        outbound_date,
-                        return_date,
-                    )
+            # Compare against last run
+            previous = get_latest_route_insight(
+                departure, arrival, outbound_date, return_date
+            )
 
-                # Get previous flights before comparing or saving new ones
-                previous_flights = get_previous_flight_numbers(
-                    route["departure"], route["arrival"], outbound_date, return_date
-                )
+            finding = {
+                "type": "first_check" if previous is None else "update",
+                "route": f"{departure} ↔ {arrival}",
+                "outbound_date": outbound_date,
+                "return_date": return_date,
+                "lowest_price": lowest_price,
+                "previous_price": previous.lowest_price if previous else None,
+                "price_level": price_level,
+                "typical_low": typical_low,
+                "typical_high": typical_high,
+                "flights": flights,
+            }
 
-                # Check for disappeared flights
-                current_flight_numbers = {
-                    f["flight_number"] for f in valid_flights if f.get("flight_number")
+            # Add price change only if price moved
+            if (
+                previous
+                and previous.lowest_price is not None
+                and lowest_price is not None
+            ):
+                diff = lowest_price - previous.lowest_price
+                if diff != 0:
+                    finding["price_change"] = diff
+
+            logger.info(
+                "%s ↔ %s on %s: $%s (%s)%s",
+                departure,
+                arrival,
+                outbound_date,
+                lowest_price,
+                price_level,
+                f" — change: {finding['price_change']:+.0f}"
+                if "price_change" in finding
+                else "",
+            )
+
+            # Save to DB
+            save_route_insight(
+                {
+                    "departure": departure,
+                    "arrival": arrival,
+                    "outbound_date": outbound_date,
+                    "return_date": return_date,
+                    "lowest_price": lowest_price,
+                    "price_level": price_level,
+                    "typical_low": typical_low,
+                    "typical_high": typical_high,
                 }
+            )
+            save_flight_snapshots(flights)
+            findings.append(finding)
 
-                for prev in previous_flights:
-                    if prev["flight_number"] not in current_flight_numbers:
-                        logger.info(
-                            "Flight disappeared: %s %s on route %s → %s on %s – %s (was $%s).",
-                            prev["airline"],
-                            prev["flight_number"],
-                            route["departure"],
-                            route["arrival"],
-                            outbound_date,
-                            return_date,
-                            prev["price"],
-                        )
-                        findings.append(
-                            {
-                                "type": "disappeared_flight",
-                                "airline": prev["airline"],
-                                "flight_number": prev["flight_number"],
-                                "route": f"{route['departure']} ↔ {route['arrival']}",
-                                "last_price": prev["price"],
-                                "outbound_date": outbound_date,
-                                "return_date": return_date,
-                            }
-                        )
+        except Exception as e:
+            logger.error(
+                "Error checking %s → %s on %s: %s",
+                departure,
+                arrival,
+                outbound_date,
+                str(e),
+            )
+            findings.append(
+                {
+                    "type": "error",
+                    "route": f"{departure} ↔ {arrival}",
+                    "outbound_date": outbound_date,
+                    "return_date": return_date,
+                    "error": str(e),
+                }
+            )
 
-                # Handle per-flight price comparison and findings
-                for flight in valid_flights:
-                    # Handle flight without flight number
-                    if not flight.get("flight_number"):
-                        logger.warning(
-                            "Skipping price check for flight without flight number for route %s → %s on %s – %s, since we cannot reliably identify it.",
-                            route["departure"],
-                            route["arrival"],
-                            outbound_date,
-                            return_date,
-                        )
-                        findings.append(
-                            {
-                                "type": "untracked_flight",
-                                "airline": flight["airline"],
-                                "route": f"{flight['departure']} ↔ {flight['arrival']}",
-                                "price": flight["price"],
-                                "outbound_date": outbound_date,
-                                "return_date": return_date,
-                                "departure_time": flight.get("departure_time"),
-                                "arrival_time": flight.get("arrival_time"),
-                                "stops": flight.get("stops"),
-                                "note": "Flight has no flight number — saved but cannot track price changes.",
-                            }
-                        )
-                        continue
-
-                    # Flight with flight number
-
-                    # Look up the most recent record for this specific flight
-                    # (same route, airline, flight number, and date) to compare prices.
-                    previous = get_latest_record(
-                        flight["departure"],
-                        flight["arrival"],
-                        flight["airline"],
-                        flight["flight_number"],
-                        flight["outbound_date"],
-                        flight["return_date"],
-                    )
-                    # No previous record -> new flight
-                    if previous is None:
-                        logger.info(
-                            "New flight found: %s %s on route %s → %s on %s – %s at $%s.",
-                            flight["airline"],
-                            flight["flight_number"],
-                            flight["departure"],
-                            flight["arrival"],
-                            outbound_date,
-                            return_date,
-                            flight["price"],
-                        )
-                        findings.append(
-                            {
-                                "type": "new_flight",
-                                "airline": flight["airline"],
-                                "flight_number": flight["flight_number"],
-                                "route": f"{flight['departure']} ↔ {flight['arrival']}",
-                                "price": flight["price"],
-                                "outbound_date": outbound_date,
-                                "return_date": return_date,
-                                "stops": flight.get("stops"),
-                            }
-                        )
-                    elif (  # Found previous record of same flight, check for price change
-                        previous.price is not None and flight["price"] is not None
-                    ):
-                        diff = flight["price"] - previous.price
-                        if abs(diff) >= ALERT_THRESHOLD_USD:
-                            logger.info(
-                                "Price change alert for %s on route %s → %s on %s – %s: old price $%s, new price $%s, change $%s.",
-                                flight["airline"],
-                                flight["departure"],
-                                flight["arrival"],
-                                outbound_date,
-                                return_date,
-                                previous.price,
-                                flight["price"],
-                                diff,
-                            )
-                            findings.append(
-                                {
-                                    "type": "price_change",
-                                    "airline": flight["airline"],
-                                    "flight_number": flight["flight_number"],
-                                    "route": f"{flight['departure']} ↔ {flight['arrival']}",
-                                    "old_price": previous.price,
-                                    "new_price": flight["price"],
-                                    "change": diff,
-                                    "outbound_date": outbound_date,
-                                    "return_date": return_date,
-                                    "stops": flight.get("stops"),
-                                }
-                            )
-
-                # Save all valid flights after comparisons are done
-                save_flight_records(valid_flights)
-                logger.info(
-                    "Fetched and saved %d flights for route %s → %s on %s – %s.",
-                    len(valid_flights),
-                    route["departure"],
-                    route["arrival"],
-                    outbound_date,
-                    return_date,
-                )
-            except Exception as e:
-                logger.error(
-                    "Error checking prices for route %s → %s on %s – %s: %s",
-                    route["departure"],
-                    route["arrival"],
-                    outbound_date,
-                    return_date,
-                    str(e),
-                )
-
-    logger.info("Price check complete. %d finding(s) this run.", len(findings))
+    logger.info("Price check complete. %d trip(s) checked.", len(TRIPS))
     return findings

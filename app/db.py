@@ -1,26 +1,15 @@
-# Database — SQLAlchemy models and functions to save/read flight price records.
-# NOTE: Models and database functions are kept in this single file for now.
-# Consider splitting into models/ and repositories/ folders as the project grows.
-# TODO: Refactor this file when more models and functions are added to keep things organized and maintainable.
+# Database — SQLAlchemy models and functions for route insights and flight snapshots.
 import logging
 from datetime import datetime
 
-from sqlalchemy import (
-    create_engine,
-    Column,
-    Integer,
-    String,
-    DateTime,
-    Float,
-    text,
-    func,
-)
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, Float, text
 from sqlalchemy.engine import URL
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 from app.config import DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD
 
 logger = logging.getLogger(__name__)
+
 connection_url = URL.create(
     "mssql+pyodbc",
     username=DB_USER,
@@ -37,121 +26,170 @@ engine = create_engine(connection_url)
 SessionLocal = sessionmaker(bind=engine)
 Base = declarative_base()
 
-# --- Flight Record model ---
+
+# --- Route Insight model ---
+# One record per trip per run — captures the price_insights market summary.
 
 
-# Define the FlightRecord model
-class FlightRecord(Base):
-    __tablename__ = "flight_prices"
+class RouteInsight(Base):
+    __tablename__ = "route_insights"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    airline = Column(String(100), nullable=False)
-    flight_number = Column(String(20), nullable=True)
     departure = Column(String(10), nullable=False)
     arrival = Column(String(10), nullable=False)
-    outbound_date = Column(String(20), nullable=False)
-    return_date = Column(String(20), nullable=True)
-    departure_time = Column(String(20), nullable=True)
-    arrival_time = Column(String(20), nullable=True)
-    stops = Column(Integer, nullable=True)
-    total_duration = Column(Integer, nullable=True)
-    price = Column(Float, nullable=True)
+    outbound_date = Column(
+        String(20), nullable=False
+    )  # String(20) — SerpApi date strings can exceed 10 chars
+    return_date = Column(String(20), nullable=False)  # String(20) — same reason
+    lowest_price = Column(Float, nullable=True)
+    price_level = Column(String(20), nullable=True)
+    typical_low = Column(Float, nullable=True)
+    typical_high = Column(Float, nullable=True)
     checked_at = Column(DateTime, default=datetime.now)
 
 
-# Function to save flight records to the database
-def save_flight_records(flights: list[dict]):
-    logger.info("Saving %d flight records to database.", len(flights))
+def save_route_insight(insight: dict):
     session = SessionLocal()
     try:
-        for flight in flights:
-            record = FlightRecord(
-                airline=flight["airline"],
-                flight_number=flight.get("flight_number"),
-                departure=flight["departure"],
-                arrival=flight["arrival"],
-                outbound_date=flight["outbound_date"],
-                return_date=flight.get("return_date"),
-                departure_time=flight.get("departure_time"),
-                arrival_time=flight.get("arrival_time"),
-                stops=flight.get("stops"),
-                total_duration=flight.get("total_duration"),
-                price=flight.get("price"),
-            )
-            session.add(record)
+        record = RouteInsight(
+            departure=insight["departure"],
+            arrival=insight["arrival"],
+            outbound_date=insight["outbound_date"],
+            return_date=insight["return_date"],
+            lowest_price=insight.get("lowest_price"),
+            price_level=insight.get("price_level"),
+            typical_low=insight.get("typical_low"),
+            typical_high=insight.get("typical_high"),
+        )
+        session.add(record)
         session.commit()
-        logger.info("Successfully saved %d flight records.", len(flights))
+        logger.info(
+            "Saved route insight for %s → %s on %s: $%s (%s).",
+            insight["departure"],
+            insight["arrival"],
+            insight["outbound_date"],
+            insight.get("lowest_price"),
+            insight.get("price_level"),
+        )
     except Exception:
-        logger.error("Failed to save flight records. Rolling back.")
+        logger.error("Failed to save route insight. Rolling back.")
         session.rollback()
         raise
     finally:
         session.close()
 
 
-# Function to get the latest record for a specific route, airline, and trip (outbound + return date)
-def get_latest_record(
-    departure: str, arrival: str, airline: str, flight_number: str, outbound_date: str, return_date: str
-) -> FlightRecord | None:
+def get_latest_route_insight(
+    departure: str, arrival: str, outbound_date: str, return_date: str
+) -> RouteInsight | None:
     session = SessionLocal()
     try:
         return (
-            session.query(FlightRecord)
+            session.query(RouteInsight)
             .filter_by(
                 departure=departure,
                 arrival=arrival,
-                airline=airline,
-                flight_number=flight_number,
                 outbound_date=outbound_date,
                 return_date=return_date,
             )
-            .order_by(FlightRecord.checked_at.desc())
+            .order_by(RouteInsight.checked_at.desc())
             .first()
         )
     finally:
         session.close()
 
 
-# Function to get the list of flight numbers for a specific route and trip from the most recent check
-def get_previous_flight_numbers(
+# --- Flight Snapshot model ---
+# One record per watched airline flight per trip per run — captures individual flight details.
+
+
+class FlightSnapshot(Base):
+    __tablename__ = "flight_snapshots"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    departure = Column(String(10), nullable=False)
+    arrival = Column(String(10), nullable=False)
+    outbound_date = Column(
+        String(20), nullable=False
+    )  # String(20) — SerpApi date strings can exceed 10 chars
+    return_date = Column(String(20), nullable=False)  # String(20) — same reason
+    airline = Column(String(100), nullable=False)
+    flight_number = Column(String(20), nullable=True)
+    price = Column(Float, nullable=True)
+    stops = Column(Integer, nullable=True)
+    departure_time = Column(
+        String(20), nullable=True
+    )  # String(20) — SerpApi time strings can exceed 10 chars
+    arrival_time = Column(String(20), nullable=True)  # String(20) — same reason
+    total_duration = Column(Integer, nullable=True)
+    checked_at = Column(DateTime, default=datetime.now)
+
+
+def save_flight_snapshots(flights: list[dict]):
+    session = SessionLocal()
+    try:
+        for flight in flights:
+            record = FlightSnapshot(
+                departure=flight["departure"],
+                arrival=flight["arrival"],
+                outbound_date=flight["outbound_date"],
+                return_date=flight["return_date"],
+                airline=flight["airline"],
+                flight_number=flight.get("flight_number"),
+                price=flight.get("price"),
+                stops=flight.get("stops"),
+                departure_time=flight.get("departure_time"),
+                arrival_time=flight.get("arrival_time"),
+                total_duration=flight.get("total_duration"),
+            )
+            session.add(record)
+        session.commit()
+        logger.info("Saved %d flight snapshots.", len(flights))
+    except Exception:
+        logger.error("Failed to save flight snapshots. Rolling back.")
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+
+def get_latest_flight_snapshots(
     departure: str, arrival: str, outbound_date: str, return_date: str
-) -> list[dict]:
+) -> list[FlightSnapshot]:
+    """Returns all flight snapshots from the most recent run for a given trip."""
     session = SessionLocal()
     try:
         latest_check = (
-            session.query(func.max(FlightRecord.checked_at))
-            .filter_by(
-                departure=departure, arrival=arrival, outbound_date=outbound_date, return_date=return_date
-            )
-            .scalar()
-        )
-        if not latest_check:
-            return []
-
-        records = (
-            session.query(FlightRecord)
+            session.query(FlightSnapshot.checked_at)
             .filter_by(
                 departure=departure,
                 arrival=arrival,
                 outbound_date=outbound_date,
                 return_date=return_date,
-                checked_at=latest_check,
+            )
+            .order_by(FlightSnapshot.checked_at.desc())
+            .first()
+        )
+        if not latest_check:
+            return []
+        return (
+            session.query(FlightSnapshot)
+            .filter_by(
+                departure=departure,
+                arrival=arrival,
+                outbound_date=outbound_date,
+                return_date=return_date,
+                checked_at=latest_check[0],
             )
             .all()
         )
-        return [
-            {"flight_number": r.flight_number, "airline": r.airline, "price": r.price}
-            for r in records
-            if r.flight_number is not None
-        ]
     finally:
         session.close()
 
 
-# --- SerpAPI call logs ---
+# --- API call log ---
 
 
-# Define the ApiCallLog model to track API calls for monitoring and debugging purposes.
 class ApiCallLog(Base):
     __tablename__ = "api_call_logs"
 
@@ -161,7 +199,6 @@ class ApiCallLog(Base):
     called_at = Column(DateTime, default=datetime.now)
 
 
-# Function to log API calls to the database for monitoring and debugging purposes.
 def log_api_call(endpoint: str, route: str):
     session = SessionLocal()
     try:
@@ -171,16 +208,14 @@ def log_api_call(endpoint: str, route: str):
         session.close()
 
 
-# --- Database ---
+# --- Database setup ---
 
 
-# Function to initialize the database (create tables)
 def init_db():
     Base.metadata.create_all(bind=engine)
     logger.info("Database initialized — tables created.")
 
 
-# Function to check database connection
 def check_db_connection() -> bool:
     try:
         with engine.connect() as conn:
