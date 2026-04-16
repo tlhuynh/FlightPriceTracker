@@ -1,4 +1,4 @@
-# SerpApi client — calls Google Flights API and returns prices filtered to watched airlines.
+# SerpApi client — fetches Google Flights data and returns flights + price insights.
 import httpx
 import logging
 from app.config import SERPAPI_KEY, WATCHED_AIRLINES
@@ -36,7 +36,13 @@ def get_account_usage() -> dict | None:
 
 def fetch_flights(
     departure: str, arrival: str, outbound_date: str, return_date: str
-) -> list[dict]:
+) -> dict:
+    """Fetch flights and price insights for a given route and trip dates.
+
+    Returns a dict with:
+      - flights: list of watched airline flights with details
+      - price_insights: lowest_price, price_level, typical_low, typical_high
+    """
     params = {
         "engine": "google_flights",
         "departure_id": departure,
@@ -48,7 +54,6 @@ def fetch_flights(
         "api_key": SERPAPI_KEY,
     }
     logger.debug("SerpApi request params: %s", params)
-
     logger.info(
         "Fetching flights from SerpApi: %s → %s on %s, return on %s",
         departure,
@@ -56,9 +61,8 @@ def fetch_flights(
         outbound_date,
         return_date,
     )
-    response = httpx.get(
-        "https://serpapi.com/search", params=params
-    )  # Make the API request to SerpApi with the specified parameters
+
+    response = httpx.get("https://serpapi.com/search", params=params)
     if response.status_code != 200:
         logger.error(
             "SerpApi request failed with status %d for %s → %s",
@@ -66,9 +70,20 @@ def fetch_flights(
             departure,
             arrival,
         )
-    response.raise_for_status()  # Raise an exception for HTTP errors (e.g., 4xx or 5xx responses)
+    response.raise_for_status()
     data = response.json()
 
+    # Extract price insights
+    raw_insights = data.get("price_insights", {})
+    typical_range = raw_insights.get("typical_price_range", [None, None])
+    price_insights = {
+        "lowest_price": raw_insights.get("lowest_price"),
+        "price_level": raw_insights.get("price_level"),
+        "typical_low": typical_range[0] if typical_range else None,
+        "typical_high": typical_range[1] if typical_range else None,
+    }
+
+    # Extract watched airline flights
     all_flights = data.get("best_flights", []) + data.get("other_flights", [])
     logger.info(
         "SerpApi returned %d total flights for %s → %s",
@@ -76,11 +91,12 @@ def fetch_flights(
         departure,
         arrival,
     )
-    results = []
+
+    flights = []
     for flight in all_flights:
         airline = flight["flights"][0]["airline"]
         if airline in WATCHED_AIRLINES:
-            results.append(
+            flights.append(
                 {
                     "airline": airline,
                     "flight_number": flight["flights"][0].get("flight_number"),
@@ -99,10 +115,12 @@ def fetch_flights(
                     "total_duration": flight.get("total_duration"),
                 }
             )
+
     logger.info(
         "Filtered to %d watched airline flights for %s → %s",
-        len(results),
+        len(flights),
         departure,
         arrival,
     )
-    return results
+
+    return {"flights": flights, "price_insights": price_insights}

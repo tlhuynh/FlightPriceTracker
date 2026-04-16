@@ -54,6 +54,11 @@ RUN pip install --no-cache-dir poetry \
 # This is done after dep install so that code changes don't invalidate the dep cache.
 COPY app/ ./app/
 
+# Copy trips.json — contains the route and trip dates to track.
+# This file is gitignored (private), so you must create it from trips.example.json
+# before building the image. The image is stored in a private ACR registry.
+COPY trips.json ./
+
 # The command Azure runs when the container starts.
 # Runs the job once and exits — no web server, no long-running process.
 CMD ["python", "-m", "app.main"]

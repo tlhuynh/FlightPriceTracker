@@ -1,11 +1,12 @@
-# Entry point — initializes the database, runs a price check, and prints or exports results.
-import sys
+# Entry point — initializes the database, runs a price check, and outputs the report.
 import logging
+from datetime import datetime
 
 from app.db import init_db, check_db_connection
-from app.config import TRIPS
+from app.config import TRIPS, REPORT_OUTPUT_DIR, SENDGRID_API_KEY
 from app.serpapi import get_account_usage
 from app.checker import check_prices
+from app.reporter import build_html, write_html_file
 
 logging.basicConfig(
     level=logging.INFO,
@@ -13,8 +14,6 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
-
-dry_run = "--dry-run" in sys.argv
 
 
 def run():
@@ -30,7 +29,9 @@ def run():
     usage = get_account_usage()
 
     if usage is None:
-        logger.warning("SerpApi usage check failed — proceeding without rate limit validation.")
+        logger.warning(
+            "SerpApi usage check failed — proceeding without rate limit validation."
+        )
     elif usage["plan_searches_left"] < calls_needed + 10:
         logger.warning(
             "Skipping price check — only %d SerpApi searches left this month, need %d plus 10 call buffer.",
@@ -46,17 +47,21 @@ def run():
         )
 
     findings = check_prices()
+    checked_at = datetime.now().strftime("%Y-%m-%d %H:%M")
+    html = build_html(findings, checked_at)
 
-    if dry_run:
-        print("\n=== Dry Run Results ===")
-        for f in findings:
-            print(f)
+    if REPORT_OUTPUT_DIR:
+        path = write_html_file(html, REPORT_OUTPUT_DIR)
+        logger.info("Report saved to %s", path)
+    elif SENDGRID_API_KEY:
+        # TODO: implement email sending when deploying
+        logger.warning("Email output not yet implemented.")
     else:
-        # TODO: print summary or export to file
-        for f in findings:
-            print(f)
+        logger.warning(
+            "No output configured — set REPORT_OUTPUT_DIR in .env for local use."
+        )
 
-    logger.info("Flight Tracker finished. %d finding(s) this run.", len(findings))
+    logger.info("Flight Tracker finished. %d trip(s) in report.", len(findings))
 
 
 if __name__ == "__main__":

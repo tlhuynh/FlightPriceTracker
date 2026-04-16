@@ -1,4 +1,4 @@
-# Database — SQLAlchemy models and functions for price insight records.
+# Database — SQLAlchemy models and functions for route insights and flight snapshots.
 import logging
 from datetime import datetime
 
@@ -28,6 +28,8 @@ Base = declarative_base()
 
 
 # --- Route Insight model ---
+# One record per trip per run — captures the price_insights market summary.
+
 
 class RouteInsight(Base):
     __tablename__ = "route_insights"
@@ -35,8 +37,10 @@ class RouteInsight(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     departure = Column(String(10), nullable=False)
     arrival = Column(String(10), nullable=False)
-    outbound_date = Column(String(20), nullable=False)
-    return_date = Column(String(20), nullable=False)
+    outbound_date = Column(
+        String(20), nullable=False
+    )  # String(20) — SerpApi date strings can exceed 10 chars
+    return_date = Column(String(20), nullable=False)  # String(20) — same reason
     lowest_price = Column(Float, nullable=True)
     price_level = Column(String(20), nullable=True)
     typical_low = Column(Float, nullable=True)
@@ -95,7 +99,96 @@ def get_latest_route_insight(
         session.close()
 
 
+# --- Flight Snapshot model ---
+# One record per watched airline flight per trip per run — captures individual flight details.
+
+
+class FlightSnapshot(Base):
+    __tablename__ = "flight_snapshots"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    departure = Column(String(10), nullable=False)
+    arrival = Column(String(10), nullable=False)
+    outbound_date = Column(
+        String(20), nullable=False
+    )  # String(20) — SerpApi date strings can exceed 10 chars
+    return_date = Column(String(20), nullable=False)  # String(20) — same reason
+    airline = Column(String(100), nullable=False)
+    flight_number = Column(String(20), nullable=True)
+    price = Column(Float, nullable=True)
+    stops = Column(Integer, nullable=True)
+    departure_time = Column(
+        String(20), nullable=True
+    )  # String(20) — SerpApi time strings can exceed 10 chars
+    arrival_time = Column(String(20), nullable=True)  # String(20) — same reason
+    total_duration = Column(Integer, nullable=True)
+    checked_at = Column(DateTime, default=datetime.now)
+
+
+def save_flight_snapshots(flights: list[dict]):
+    session = SessionLocal()
+    try:
+        for flight in flights:
+            record = FlightSnapshot(
+                departure=flight["departure"],
+                arrival=flight["arrival"],
+                outbound_date=flight["outbound_date"],
+                return_date=flight["return_date"],
+                airline=flight["airline"],
+                flight_number=flight.get("flight_number"),
+                price=flight.get("price"),
+                stops=flight.get("stops"),
+                departure_time=flight.get("departure_time"),
+                arrival_time=flight.get("arrival_time"),
+                total_duration=flight.get("total_duration"),
+            )
+            session.add(record)
+        session.commit()
+        logger.info("Saved %d flight snapshots.", len(flights))
+    except Exception:
+        logger.error("Failed to save flight snapshots. Rolling back.")
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+
+def get_latest_flight_snapshots(
+    departure: str, arrival: str, outbound_date: str, return_date: str
+) -> list[FlightSnapshot]:
+    """Returns all flight snapshots from the most recent run for a given trip."""
+    session = SessionLocal()
+    try:
+        latest_check = (
+            session.query(FlightSnapshot.checked_at)
+            .filter_by(
+                departure=departure,
+                arrival=arrival,
+                outbound_date=outbound_date,
+                return_date=return_date,
+            )
+            .order_by(FlightSnapshot.checked_at.desc())
+            .first()
+        )
+        if not latest_check:
+            return []
+        return (
+            session.query(FlightSnapshot)
+            .filter_by(
+                departure=departure,
+                arrival=arrival,
+                outbound_date=outbound_date,
+                return_date=return_date,
+                checked_at=latest_check[0],
+            )
+            .all()
+        )
+    finally:
+        session.close()
+
+
 # --- API call log ---
+
 
 class ApiCallLog(Base):
     __tablename__ = "api_call_logs"
@@ -116,6 +209,7 @@ def log_api_call(endpoint: str, route: str):
 
 
 # --- Database setup ---
+
 
 def init_db():
     Base.metadata.create_all(bind=engine)
