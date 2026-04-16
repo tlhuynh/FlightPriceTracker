@@ -62,7 +62,7 @@ def check_prices() -> list[dict]:
 
             finding = {
                 "type": "first_check" if previous is None else "update",
-                "route": f"{departure} → {arrival}",
+                "route": f"{departure} ↔ {arrival}",
                 "outbound_date": outbound_date,
                 "return_date": return_date,
                 "lowest_price": lowest_price,
@@ -84,7 +84,7 @@ def check_prices() -> list[dict]:
                     finding["price_change"] = diff
 
             logger.info(
-                "%s → %s on %s: $%s (%s)%s",
+                "%s ↔ %s on %s: $%s (%s)%s",
                 departure,
                 arrival,
                 outbound_date,
@@ -122,7 +122,7 @@ def check_prices() -> list[dict]:
             findings.append(
                 {
                     "type": "error",
-                    "route": f"{departure} → {arrival}",
+                    "route": f"{departure} ↔ {arrival}",
                     "outbound_date": outbound_date,
                     "return_date": return_date,
                     "error": str(e),

@@ -4,9 +4,21 @@
     "arrival": "ARRIVAL_AIRPORT"
   },
   "trips": [
-    {"outbound_date": "YYYY-MM-DD", "return_date": "YYYY-MM-DD"},
-    {"outbound_date": "YYYY-MM-DD", "return_date": "YYYY-MM-DD"},
-    {"outbound_date": "YYYY-MM-DD", "return_date": "YYYY-MM-DD"},
-    {"outbound_date": "YYYY-MM-DD", "return_date": "YYYY-MM-DD"}
+    {
+      "outbound_date": "YYYY-MM-DD",
+      "return_date": "YYYY-MM-DD"
+    },
+    {
+      "outbound_date": "YYYY-MM-DD",
+      "return_date": "YYYY-MM-DD"
+    },
+    {
+      "outbound_date": "YYYY-MM-DD",
+      "return_date": "YYYY-MM-DD"
+    },
+    {
+      "outbound_date": "YYYY-MM-DD",
+      "return_date": "YYYY-MM-DD"
+    }
   ]
 }

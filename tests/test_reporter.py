@@ -53,7 +53,7 @@ def test_fmt_stops_none():
 SAMPLE_FINDINGS = [
     {
         "type": "first_check",
-        "route": "IAH → NRT",
+        "route": "IAH ↔ NRT",
         "outbound_date": "2026-06-07",
         "return_date": "2026-06-21",
         "lowest_price": 870,
@@ -105,7 +105,7 @@ def test_build_html_error_finding():
     findings = [
         {
             "type": "error",
-            "route": "IAH → NRT",
+            "route": "IAH ↔ NRT",
             "outbound_date": "2026-06-07",
             "error": "API failed",
         }

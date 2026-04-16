@@ -80,7 +80,7 @@ def build_html(findings: list[dict], checked_at: str) -> str:
         body += (
             f'<div style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px 20px; margin-bottom: 28px;">'
             f'<h2 style="margin: 0 0 12px; font-size: 16px; color: #111;">'
-            f"{finding['route']} &nbsp;|&nbsp; {outbound} → {return_d}"
+            f"{finding['route']} &nbsp;|&nbsp; Out: {outbound} &nbsp;→&nbsp; Ret: {return_d}"
             f"</h2>"
         )
 
@@ -107,7 +107,7 @@ def build_html(findings: list[dict], checked_at: str) -> str:
                     "Price",
                     "Stops",
                     "Departs",
-                    "Arrives",
+                    "Returns",
                     "Duration",
                 ]
             )
@@ -122,8 +122,8 @@ def build_html(findings: list[dict], checked_at: str) -> str:
                     f'<td style="{td}">{f.get("flight_number", "—")}</td>'
                     f'<td style="{td}"><strong>{_fmt_price(f.get("price"))}</strong></td>'
                     f'<td style="{td}">{_fmt_stops(f.get("stops"))}</td>'
-                    f'<td style="{td}">{f.get("departure_time", "—")}</td>'
-                    f'<td style="{td}">{f.get("arrival_time", "—")}</td>'
+                    f'<td style="{td}">{f.get("outbound_date", "—")}</td>'
+                    f'<td style="{td}">{f.get("return_date", "—")}</td>'
                     f'<td style="{td}">{_fmt_duration(f.get("total_duration"))}</td>'
                     f"</tr>"
                 )
